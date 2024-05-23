@@ -475,47 +475,47 @@ hydrogenproduceddata = pd.DataFrame(index=feedin.index) #for plotting the hydrog
 exceldf = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
  
 
-#objective
-for k in range(Nsteps): #for loop allows to evaluate several years in one run   
-    m.reset()
-    m.setObjective(sum(x[i]*C[i][k] for i in range(len(x))),gp.GRB.MINIMIZE) #minimization of the total costs with the given demand (aka minimization of the costs/ton hydrogen, aka optimization of the hydrogen supply chain in the given scenario)
-    m.optimize()
-    #determine fuel
-    if Tammonia.x>0 :
-        Transportmedium ="AMMONIA"
-    else:
-        Transportmedium = "LIQUID HYDROGEN"
-    print("Optimal solution found!")
-    print("For a demand of", demand*12/10 ,"tons of hydrogen per year in", demandlocation ,"in year", timestep*k+Startyear, "with production in", productionlocation ,"and transfer in the port of", transferport, "the yearly costs are equal to", m.ObjVal*12/10,"euros in total.\n This is equal to a cost of", m.ObjVal/demand, "euros per ton of hydrogen.\n In this configuration, we will use:\n",Xw1.X, "wind turbines of type 1\n",Xw2.X, "wind turbines of type 2\n",Xw3.X, "wind turbines of type 3\n",Xw4.X, "wind turbines of type 4\n",Xw5.X, "wind turbines of type 5\n", Xs1.X, "solar platforms of type 1\n", Xs2.X, "solar platforms of type 2\n", Xs3.X, "solar platforms of type 3\n", Xs4.X, "solar platforms of type 4\n", Xs5.X, "solar platforms of type 5\n", Xe.X, "electrolyzers\n", Xd.x , "desalination installations\n", Xst.X, "m3 of storage capacity \n ",Tammonia.X*Xconvammonia + Tliquid.X*Xconvliquid , "conversion and", Tammonia.X*Xreconvammonia + Tliquid.X*Xreconvliquid , "reconversion installations for", Transportmedium ,"\n in an FPSO of", Xfpso.X, "m3") #prints the values of all variables in the optimized solution
-    #export to excel
-    exceldf[timestep*k+Startyear] = [demand*12/10,demandlocation,timestep*k+Startyear, productionlocation, transferport, m.ObjVal*12/10, m.ObjVal/demand/1000,Xw1.X, Xs1.X, Xe.X, Xd.x , Xst.X, Tammonia.X*Xconvammonia + Tliquid.X*Xconvliquid, Tammonia.X*Xreconvammonia + Tliquid.X*Xreconvliquid , Transportmedium , Xfpso.X,distancesea,distanceland]
+# #objective
+# for k in range(Nsteps): #for loop allows to evaluate several years in one run   
+#     m.reset()
+#     m.setObjective(sum(x[i]*C[i][k] for i in range(len(x))),gp.GRB.MINIMIZE) #minimization of the total costs with the given demand (aka minimization of the costs/ton hydrogen, aka optimization of the hydrogen supply chain in the given scenario)
+#     m.optimize()
+#     #determine fuel
+#     if Tammonia.x>0 :
+#         Transportmedium ="AMMONIA"
+#     else:
+#         Transportmedium = "LIQUID HYDROGEN"
+#     print("Optimal solution found!")
+#     print("For a demand of", demand*12/10 ,"tons of hydrogen per year in", demandlocation ,"in year", timestep*k+Startyear, "with production in", productionlocation ,"and transfer in the port of", transferport, "the yearly costs are equal to", m.ObjVal*12/10,"euros in total.\n This is equal to a cost of", m.ObjVal/demand, "euros per ton of hydrogen.\n In this configuration, we will use:\n",Xw1.X, "wind turbines of type 1\n",Xw2.X, "wind turbines of type 2\n",Xw3.X, "wind turbines of type 3\n",Xw4.X, "wind turbines of type 4\n",Xw5.X, "wind turbines of type 5\n", Xs1.X, "solar platforms of type 1\n", Xs2.X, "solar platforms of type 2\n", Xs3.X, "solar platforms of type 3\n", Xs4.X, "solar platforms of type 4\n", Xs5.X, "solar platforms of type 5\n", Xe.X, "electrolyzers\n", Xd.x , "desalination installations\n", Xst.X, "m3 of storage capacity \n ",Tammonia.X*Xconvammonia + Tliquid.X*Xconvliquid , "conversion and", Tammonia.X*Xreconvammonia + Tliquid.X*Xreconvliquid , "reconversion installations for", Transportmedium ,"\n in an FPSO of", Xfpso.X, "m3") #prints the values of all variables in the optimized solution
+#     #export to excel
+#     exceldf[timestep*k+Startyear] = [demand*12/10,demandlocation,timestep*k+Startyear, productionlocation, transferport, m.ObjVal*12/10, m.ObjVal/demand/1000,Xw1.X, Xs1.X, Xe.X, Xd.x , Xst.X, Tammonia.X*Xconvammonia + Tliquid.X*Xconvliquid, Tammonia.X*Xreconvammonia + Tliquid.X*Xreconvliquid , Transportmedium , Xfpso.X,distancesea,distanceland]
 
-    #plot power available electrolyzers
-    powerovertimeelectrolyzervalues = np.empty(len(powerovertimeelectrolyzer), dtype=object)
-    for i in range(len(powerovertimeelectrolyzer)):
-        powerovertimeelectrolyzervalues[i] = powerovertimeelectrolyzer[i].x
-    powerovertimeelectrolyzerdata['production'] = powerovertimeelectrolyzervalues.tolist()
-    powerovertimeelectrolyzerdata.plot(title=' ') #power available for electrolyzers
-    plt.xlabel('Time')
-    plt.ylabel('W')
+#     #plot power available electrolyzers
+#     powerovertimeelectrolyzervalues = np.empty(len(powerovertimeelectrolyzer), dtype=object)
+#     for i in range(len(powerovertimeelectrolyzer)):
+#         powerovertimeelectrolyzervalues[i] = powerovertimeelectrolyzer[i].x
+#     powerovertimeelectrolyzerdata['production'] = powerovertimeelectrolyzervalues.tolist()
+#     powerovertimeelectrolyzerdata.plot(title=' ') #power available for electrolyzers
+#     plt.xlabel('Time')
+#     plt.ylabel('W')
     
-    #plot power used electrolyzers
-    electricityusedelectrolyzervalues = np.empty(len(electricityusedelectrolyzer), dtype=object)
-    for i in range(len(electricityusedelectrolyzer)):
-        electricityusedelectrolyzervalues[i] = electricityusedelectrolyzer[i].x
-    electricityusedelectrolyzerdata['production'] = electricityusedelectrolyzervalues.tolist()
-    electricityusedelectrolyzerdata.plot(title=' ')
-    plt.xlabel('Time')
-    plt.ylabel('W')
-    plt.ylim([0,700000000])
+#     #plot power used electrolyzers
+#     electricityusedelectrolyzervalues = np.empty(len(electricityusedelectrolyzer), dtype=object)
+#     for i in range(len(electricityusedelectrolyzer)):
+#         electricityusedelectrolyzervalues[i] = electricityusedelectrolyzer[i].x
+#     electricityusedelectrolyzerdata['production'] = electricityusedelectrolyzervalues.tolist()
+#     electricityusedelectrolyzerdata.plot(title=' ')
+#     plt.xlabel('Time')
+#     plt.ylabel('W')
+#     plt.ylim([0,700000000])
     
-    #plot produced hydrogen
-    hydrogenproducedvalues = np.empty(len(hydrogenproduced), dtype=object)
-    for i in range(len(hydrogenproduced)):
-        hydrogenproducedvalues[i] = hydrogenproduced[i].x
-    hydrogenproduceddata['production'] = hydrogenproducedvalues.tolist()
-    hydrogenproduceddata.plot(title='')
-    plt.xlabel('Time')
-    plt.ylabel('Tons per hour')
+#     #plot produced hydrogen
+#     hydrogenproducedvalues = np.empty(len(hydrogenproduced), dtype=object)
+#     for i in range(len(hydrogenproduced)):
+#         hydrogenproducedvalues[i] = hydrogenproduced[i].x
+#     hydrogenproduceddata['production'] = hydrogenproducedvalues.tolist()
+#     hydrogenproduceddata.plot(title='')
+#     plt.xlabel('Time')
+#     plt.ylabel('Tons per hour')
    
-exceldf.to_excel('Simulation_results.xlsx', sheet_name='Results')
+# exceldf.to_excel('Simulation_results.xlsx', sheet_name='Results')
