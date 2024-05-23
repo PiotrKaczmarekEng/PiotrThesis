@@ -367,6 +367,16 @@ T = list(range(0,7320))
 PU = {}
 for t in T:
     PU[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PU[' + str(t) + ']' )
+    
+# test for more constraints
+PA = {}
+PG = {}
+h = {}
+h = model.addVars(len(feedinarray),vtype=GRB.CONTINUOUS,name='h')
+for t in T:
+    PG[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PG[' + str(t) + ']' )
+    PA[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PA[' + str(t) + ']' )
+    # h[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'h[' + str(t) + ']' )
 
 # %%  ---- Integrate new variables ----
 model.update()
@@ -381,16 +391,16 @@ model.update ()
 # %% Constraints
 
 # constraint for power used to power generated
-power_used_g = {}
+# power_used_g = {}
 
-for t in T:
-    power_used_g[t] = model.addConstr(PU[t] <= alpha[E]*(my_turbinearray[t]*x[1] + feedinarray[t]*x[2]))
+# for t in T:
+#     power_used_g[t] = model.addConstr(PU[t] <= alpha[E]*(my_turbinearray[t]*x[1] + feedinarray[t]*x[2]))
     
-power_used_e = {}
-for t in T:
-    power_used_g[t] = model.addConstr(PU[t] <= beta*gamma*x[3])
+# power_used_e = {}
+# for t in T:
+#     power_used_g[t] = model.addConstr(PU[t] <= beta*gamma*x[3])
 
-model.addConstr(quicksum(PU[t] for t in T) >= (gamma*D)/eta[0][E]*eta[1][E])
+# model.addConstr(quicksum(PU[t] for t in T) >= (gamma*D)/(eta[0][E]*eta[1][E]))
 
 
 model.addConstr(x[4] >= x[3]*beta*epsilon)
@@ -398,6 +408,21 @@ model.addConstr(x[4] >= x[3]*beta*epsilon)
 model.addConstr(y[2] == x[3]*nu[E])
 
 model.addConstr(y[1] == y[2]*phi[E])
+
+# test by adding more constraints
+
+for t in T:
+    model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2])
+    model.addConstr(PA[t] == alpha[E]*PG[t])
+    model.addConstr(PU[t] <= alpha[E]*PG[t])
+    model.addConstr(PU[t] <= beta*gamma*x[3])
+    model.addConstr(h[t] == PU[t]/gamma)
+    
+model.addConstr(h.sum() >= D/(eta[0][E]*eta[1][E]))
+    
+    
+    
+    
 
 # for i in I:
 #     model.addConstr(w[i,1] <= BigM*E)
@@ -408,6 +433,6 @@ model.addConstr(y[1] == y[2]*phi[E])
 #%%
 model.update()
 model.Params.NumericFocus = 1
-model.Params.timeLimit = 600
+model.Params.timeLimit = 400
 model.optimize()
     
