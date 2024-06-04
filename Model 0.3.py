@@ -408,6 +408,18 @@ model.Params.timeLimit = 400
 # model.optimize()
 
 Result = []
+hdata = pd.DataFrame(index=feedin.index) #for plotting the hydrogen production
+exceldf = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
+demandlocation = general.cell(row=17, column=2).value #location where hydrogen is asked
+productionlocation = general.cell(row=15, column=2).value #location where hydrogen is produced
+transferport = general.cell(row=16, column=2).value #port where hydrogen is transferred from sea to land transport
+
+transportmedium = str('')
+if E == 0:
+    transportmedium = 'Ammonia'
+elif E == 1:
+    transportmedium = 'Liquid_H2'
+
 
 for l in L: 
     model.reset()
@@ -416,6 +428,19 @@ for l in L:
     model.update ()
     model.optimize()
     Result.append(model.ObjVal)
+    exceldf[timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
+
+
+
+#plot produced hydrogen
+hvalues = np.empty(len(h), dtype=object)
+for t in range(len(h)):
+    hvalues[t] = h[t].x
+hdata['production'] = hvalues.tolist()
+hdata.plot(title='')
+plt.xlabel('Time')
+plt.ylabel('Tons per hour')
+
 
 
 #%% --- Post-Processing ---
