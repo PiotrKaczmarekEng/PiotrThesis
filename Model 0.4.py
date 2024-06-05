@@ -5,7 +5,7 @@ Created on Thu May  2 11:41:52 2024
 @author: spide
 """
 
-# --- Preamble ---
+#%% --- Preamble ---
 
 import os
 import numpy as np
@@ -24,9 +24,7 @@ from windpowerlib import get_turbine_types
 from datetime import timedelta
 from gurobipy import *
 
-#%%
-
-# Excel Parameters
+#%% --- Excel Parameters ---
 
 #loading excel to later retrieve input data using openpyxl
 data_file = os.getcwd() 
@@ -59,17 +57,17 @@ multwind = 12/3   # Capacity per unit [MW] / capacity from Windlib [MW]
 
 
 
-#%% --- Test ERA5 ---
-
-# --- TEST Solar Energy Generation ---
+#%% --- Solar Function (and ERA5 setup) ---
 
 # set start and end date (end date will be included
 # in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-01-30'
+# start_date, end_date = '2020-01-01', '2020-01-30'  #Test data of 1 month
+start_date, end_date = '2020-01-01', '2020-10-31'
 # set variable set to download
 variable = 'feedinlib'
 
-era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc' #referring to file with weather data downloaded earlier using the ERA5 API
+# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc' #referring to file with weather data downloaded earlier using the ERA5 API
+era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
 
 
 latitude =  26.81
@@ -142,6 +140,9 @@ def func_PV(location):
     
     return feedinarray    
 
+feedinarray = func_PV(area)
+
+#%% --- (OLD) Solar Generation ---
 
 # # get modules
 # module_df = get_power_plant_data(dataset='SandiaMod') #retrieving dataset for PV modules
@@ -212,9 +213,7 @@ def func_PV(location):
 
 # # feedinlist.append(feedinarray)
 
-#%%
-
-# --- Wind function ---
+#%% --- Wind function ---
 
 def func_Wind(location):
     
@@ -271,7 +270,7 @@ def func_Wind(location):
     
     return my_turbinearray
 
-
+my_turbinearray = func_Wind(area)
 #%%
 # --- Solar Energy Generation ---
 
@@ -354,65 +353,64 @@ print('One panel with the chosen input parameters in location', latitude,',',lon
 feedinarray = multsolar*feedin.values #hourly energy production over the year of 1 solar platform of the specified kind in the specified location
 feedinarray[feedinarray<0]=0
 
-#%%
+#%% --- (OLD) Wind Energy Generation  ---
 
-# --- Wind Energy Generation ---
+# # get power curves
+# # get names of wind turbines for which power curves and/or are provided
+# # set print_out=True to see the list of all available wind turbines
+# df = get_turbine_types(print_out=False)
 
-# get power curves
-# get names of wind turbines for which power curves and/or are provided
-# set print_out=True to see the list of all available wind turbines
-df = get_turbine_types(print_out=False)
+# #defining the wind turbine system
+# turbine_data= {
+#     "turbine_type": "E-101/3050",  # turbine type as in register
+#     "hub_height": 130,  # in m
+# }
+# my_turbine = WindTurbine(**turbine_data)
 
-#defining the wind turbine system
-turbine_data= {
-    "turbine_type": "E-101/3050",  # turbine type as in register
-    "hub_height": 130,  # in m
-}
-my_turbine = WindTurbine(**turbine_data)
+# #getting the needed weather data for PV calculations from the file as downloaded with a seperate script from ERA5
+# windpowerlib_df = era5.weather_df_from_era5(
+#     era5_netcdf_filename='ERA5_weather_data_location4.nc',
+#     lib='windpowerlib', area=area)
 
-#getting the needed weather data for PV calculations from the file as downloaded with a seperate script from ERA5
-windpowerlib_df = era5.weather_df_from_era5(
-    era5_netcdf_filename='ERA5_weather_data_location4.nc',
-    lib='windpowerlib', area=area)
+# #increasing the time indices by half an hour because then they match the pvlib time indices so the produced energy can be added later
+# #assumed wind speeds half an hour later are similar and this will not affect the results significantly
+# windpowerlib_df.index = windpowerlib_df.index + timedelta(minutes=30)
 
-#increasing the time indices by half an hour because then they match the pvlib time indices so the produced energy can be added later
-#assumed wind speeds half an hour later are similar and this will not affect the results significantly
-windpowerlib_df.index = windpowerlib_df.index + timedelta(minutes=30)
+# # power output calculation for e126
 
-# power output calculation for e126
+# # own specifications for ModelChain setup
+# modelchain_data = {
+#     'wind_speed_model': 'logarithmic',      # 'logarithmic' (default),
+#                                             # 'hellman' or
+#                                             # 'interpolation_extrapolation'
+#     'density_model': 'ideal_gas',           # 'barometric' (default), 'ideal_gas'
+#                                             #  or 'interpolation_extrapolation'
+#     'temperature_model': 'linear_gradient', # 'linear_gradient' (def.) or
+#                                             # 'interpolation_extrapolation'
+#     'power_output_model': 'power_curve',    # 'power_curve' (default) or
+#                                             # 'power_coefficient_curve'
+#     'density_correction': True,             # False (default) or True
+#     'obstacle_height': 0,                   # default: 0
+#     'hellman_exp': None}                    # None (default) or None
 
-# own specifications for ModelChain setup
-modelchain_data = {
-    'wind_speed_model': 'logarithmic',      # 'logarithmic' (default),
-                                            # 'hellman' or
-                                            # 'interpolation_extrapolation'
-    'density_model': 'ideal_gas',           # 'barometric' (default), 'ideal_gas'
-                                            #  or 'interpolation_extrapolation'
-    'temperature_model': 'linear_gradient', # 'linear_gradient' (def.) or
-                                            # 'interpolation_extrapolation'
-    'power_output_model': 'power_curve',    # 'power_curve' (default) or
-                                            # 'power_coefficient_curve'
-    'density_correction': True,             # False (default) or True
-    'obstacle_height': 0,                   # default: 0
-    'hellman_exp': None}                    # None (default) or None
-
-# initialize ModelChain with own specifications and use run_model method to
-# calculate power output
-mc_my_turbine = ModelChain(my_turbine, **modelchain_data).run_model(windpowerlib_df)
-# write power output time series to WindTurbine object
-my_turbine.power_output = mc_my_turbine.power_output
+# # initialize ModelChain with own specifications and use run_model method to
+# # calculate power output
+# mc_my_turbine = ModelChain(my_turbine, **modelchain_data).run_model(windpowerlib_df)
+# # write power output time series to WindTurbine object
+# my_turbine.power_output = mc_my_turbine.power_output
 
 
-# plot turbine power output
-plt.figure()
-my_turbine.power_output.plot(title='Wind turbine power production')
-plt.xlabel('Time')
-plt.ylabel('Power in W')
-plt.show()
+# # plot turbine power output
+# plt.figure()
+# my_turbine.power_output.plot(title='Wind turbine power production')
+# plt.xlabel('Time')
+# plt.ylabel('Power in W')
+# plt.show()
 
-my_turbinearray = multwind*my_turbine.power_output.values #hourly energy production over the year of 1 wind turbine of the specified kind in the specified location
+# my_turbinearray = multwind*my_turbine.power_output.values #hourly energy production over the year of 1 wind turbine of the specified kind in the specified location
 
-# %% Model parameters and sets
+#%% --- Model parameters and sets ---
+
 # Set model name
 model = Model('GFPSO Cost Optimization')
 
@@ -569,8 +567,7 @@ W = [[w11, w12], [w21, w22]]
 #  For now the converters and reconverter amount is constant
 WC = quicksum(W[i-1][E]*A[l][i-1][E] for i in I) 
 
-#%%
-# --- Variables ---
+#%% --- Variables ---
 
 # # w[i,j]
 # w = {}
@@ -614,7 +611,7 @@ model.update()
 # model.modelSense = GRB.MINIMIZE
 # model.update ()
 
-# %% --- Constraints ---
+#%% --- Constraints ---
 
 for t in T:
     model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2])
