@@ -65,13 +65,13 @@ demand = 10/12*general.cell(row=21, column=2).value #demand in tons of hydrogen 
 
 # set start and end date (end date will be included
 # in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-01-30'  #Test data of 1 month
-# start_date, end_date = '2020-01-01', '2020-10-31'
+# start_date, end_date = '2020-01-01', '2020-01-30'  #Test data of 1 month
+start_date, end_date = '2020-01-01', '2020-10-31'
 # set variable set to download
 variable = 'feedinlib'
 
-era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc' #referring to file with weather data downloaded earlier using the ERA5 API
-# era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
+# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc' #referring to file with weather data downloaded earlier using the ERA5 API
+era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
 
 
 latitude =  26.81
@@ -458,6 +458,7 @@ def func_TC(location):
     
     return TC
 
+TC = func_TC(area)
 #%% Prepare location loop
 
 # Define the dimensions of the matrix
@@ -471,316 +472,322 @@ for i in range(size):
     for j in range(size):
         loc_matrix[i,j] = (start + j + longitude, end - i + latitude)
 
-dict_of_df = {}
-for loci in loc_matrix[0]:
-    dict_of_df[loci] = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
-
-feedinlist = []
-
-counter = 0
-# for now for the first three locations
-for loc in loc_matrix[0]:
-    # Select location 'loc' (varies by longitude)
-    # print(loc,' , type: ',type(loc))
-    # Calculate PV
-    feedinarray = func_PV(list(loc))
-    # Calculate W
-    my_turbinearray = func_Wind(loc)
-    # Calculate TC
-    TC = func_TC(loc)
-    
-
-    #%% --- Model parameters and sets ---
-    
-    # Set model name
-    model = Model('GFPSO Cost Optimization')
-    
-    # ---- Sets ----
-    
-    I = [1, 2] # Conv devices (1: Conv, 2: Reconv)
-    J = [1, 2] # Energy Medium (1: Ammonia, 2: LiquidH2)
-    K = [1, 2, 3, 4] # Device types (1: Wind, 2: Solar, 3: Elec, 4: Desal)
-    L = range(Nsteps) # Years in time period
-    N = [1, 2] # Volume based equipment (1: Storage, 2: FPSO)
-    T = list(range(0,len(feedinarray))) # Operational hours in year
-    
-    # If medium choice is done as parameter
-    E = 0
+list_vert_locs = []
+for vert in range(size):
     
     
-    # ---- Parameters ----
+    dict_of_df = {}
+    for loci in loc_matrix[vert]:
+        dict_of_df[loci] = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
     
-    # Cost parameters
+    feedinlist = []
     
-    Cconvammonia = 10/12*np.array([float(cell.value) for cell in ammonia[48][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an ammonia conversion installation in 10^3 euros over several years
-    Cconvliquid = 10/12*np.array([float(cell.value) for cell in liquidhydrogen[61][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a liquid hydrogen conversion installation in 10^3 euros over several years
-    Creconvammonia = 10/12*np.array([float(cell.value) for cell in ammonia[111][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an ammonia conversion installation in 10^3 euros over several years
-    Creconvliquid = 10/12*np.array([float(cell.value) for cell in liquidhydrogen[125][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a liquid hydrogen conversion installation in 10^3 euros over several years
-    
-    # A_lij , l = year in time period, i = conversion device type, j = medium
-    A = []
-    for l in range(Nsteps):
-        Aarray = np.array([[Cconvammonia[l], Cconvliquid[l]], [Creconvammonia[l], Creconvliquid[l]]])
-        A.append(Aarray)
-    
-    Cs1 = 10/12*np.array([float(cell.value) for cell in solar[51][2:2+Nsteps]])
-    Cw1 = 10/12*np.array([float(cell.value) for cell in wind[48][2:2+Nsteps]])
-    Ce = 10/12*np.array([float(cell.value) for cell in electrolyzer[50][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an electrolyzer in 10^3 euros over several years
-    Cd = 10/12*np.array([float(cell.value) for cell in desalination[49][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a desalination installation in 10^3 euros over several years
-    
-    # B_lk , l = year in time period, k = device type (solar, wind, elec, desal)
-    B = []
-    for l in L:
-        Barray = np.array([Cw1[l], 
-                           Cs1[l], 
-                           Ce[l], 
-                           Cd[l]])
-        B.append(Barray)
-    
-    # C_ln
-    Cstliquid =  10/12*np.array([float(cell.value) for cell in storage[25][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of storage per m3 in euros over several years
-    Cstammonia =  10/12*np.array([float(cell.value) for cell in storage[54][2:2+Nsteps]])
-    Cfpso = 10/12* np.array([float(cell.value) for cell in fpso[53][2:2+Nsteps]]) #np.array([1,1,0.8,0.6,0.4]) #cost per year (depreciation+OPEX) of FPSO per m3 in 10^3 euros over several years
-    Cst = Cstammonia
-    
-    C = []
-    for l in L:
-        Carray = np.array([Cst[l], 
-                           Cfpso[l]])
-        C.append(Carray)
-    
-    # D , Yearly demand
-    demand = 10/12*general.cell(row=21, column=2).value #demand in tons of hydrogen per year
-    # D = demand
-    D = (10/12)*50000 # [tonH2/yr]\
-    
-    # --------
-    # # TC , Transport cost
-    
-    # coords_production = (general.cell(row=15, column=4).value, general.cell(row=15, column=5).value) #coordinates (latitude and longitude) of production location
-    # coords_port = (general.cell(row=16, column=4).value, general.cell(row=16, column=5).value) #coordinates (latitude and longitude) of port
-    # coords_demand = (general.cell(row=17, column=4).value, general.cell(row=17, column=5).value)  #coordinates (latitude and longitude) of demand location
-    # distanceseafactor = general.cell(row=25, column=2).value
-    # distancesea = distanceseafactor*geopy.distance.geodesic(coords_production, coords_port).km #distance to be travelled over sea from production to demand location in km
-    # distanceland = geopy.distance.geodesic(coords_port, coords_demand).km #distance to be travelled over land from production to demand location in km
-    
-    # Xtransport = demand #amount to be transported by ship in tons of hydrogen, assumed to be equal to demand as hydrogen losses are almost zero 
-    # Xkmsea = Xtransport*distancesea #yearly amount of tonkm to be made over sea
-    # Xkmland = demand*distanceland #yealy amount of tonkm over land
-    
-    # Ckmammonia = np.array([float(cell.value) for cell in ammonia[158][2:2+Nsteps]]) #costs per km of overseas transport of 1 ton of hydrogen as ammonia in 10^3 euros over several years
-    # Cbasetransportammonia = np.array([float(cell.value) for cell in ammonia[159][2:2+Nsteps]])
-    # Ckmliquid = np.array([float(cell.value) for cell in liquidhydrogen[168][2:2+Nsteps]]) #costs per km of overseas transport of 1 ton of hydrogen as liquid hydrogen in 10^3 euros over several years
-    # Cbasetransportliquid =  np.array([float(cell.value) for cell in liquidhydrogen[169][2:2+Nsteps]])
-    # Ckmland = np.array([float(cell.value) for cell in landtransport[33][2:2+Nsteps]]) #costs per year per km of overland pipeline for 1 ton of hydrogen
-    
-    # Ckmsea = [Ckmammonia, Ckmliquid] #costs per km of overseas transport, depending on whether ammonia or liquid hydrogen is chosen
-    # Cbasetransport = [Cbasetransportammonia, Cbasetransportliquid] #baserate of the transport per ton hydrogen
-    
-    # # # LocTC is a list of the transport costs at the different locations in region
-    # # LocTC = []
-    # # for Loc in loclist:
-    # #     Loc = tuple(Loc)
-    # #     distancesea = distanceseafactor*geopy.distance.geodesic(Loc, coords_port).km
-    # #     Xkmsea = Xtransport*distancesea
-        
-    # # TC_jl
-    # TC = []
-    # for j in J:
-    #     TCyear = Xtransport*Cbasetransport[j-1] + Xkmsea*Ckmsea[j-1] + Xkmland*Ckmland
-    #     TC.append(TCyear)
-    # ---------
-    
-    # LocTC.append(TC)
-        
-    # # TC_jl
-    # TC = []
-    # for j in J:
-    #     TCyear = Xtransport*Cbasetransport[j-1] + Xkmsea*Ckmsea[j-1] + Xkmland*Ckmland
-    #     TC.append(TCyear)
+    counter = 0
+    # for now for the first three locations
+    for loc in loc_matrix[vert]:
+        # Select location 'loc' (varies by longitude)
+        # print(loc,' , type: ',type(loc))
+        # Calculate PV
+        feedinarray = func_PV(list(loc))
+        # Calculate W
+        my_turbinearray = func_Wind(loc)
+        # Calculate TC
+        TC = func_TC(loc)
         
     
-    
-    # Non-cost parameters
-    fracpowerelectrolyzerliquid = electrolyzer.cell(row=11, column=2).value #fraction of energy used by electrolyzers when using liquid hydrogen
-    fracpowerelectrolyzerammonia = electrolyzer.cell(row=12, column=2).value #fraction of energy used by elecyrolyzers when using ammonia
-    alpha = [fracpowerelectrolyzerammonia, fracpowerelectrolyzerliquid]
-    
-    capelectrolyzerhour = electrolyzer.cell(row=9, column=2).value #hourly output capacity of electrolyzers in tons of hydrogen per hour
-    beta = capelectrolyzerhour
-    
-    electrolyzer_energy = 1000*electrolyzer.cell(row=7, column=2).value #energy requirement of electrolyzer in Wh per ton of hydrogen
-    gamma = electrolyzer_energy
-    
-    electrolyzer_water = electrolyzer.cell(row=6, column=2).value #water requirement of electrolyzer in m3 of water per ton of hydrogen
-    capdesalinationhour = desalination.cell(row=14, column=2).value #hourly output capacity desalination in m3 of water per hour
-    epsilon = electrolyzer_water/capdesalinationhour
-    
-    eta_conversionammonia = ammonia.cell(row=13, column=2).value #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the conversion process and the amount of hydrogen coming out
-    eta_conversionliquid =  liquidhydrogen.cell(row=16, column=2).value #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the conversion process and the amount of hydrogen coming out
-    eta_reconversionammonia = eta_conversionammonia #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the reconversion process and the amount of hydrogen coming out
-    eta_reconversionliquid = eta_conversionliquid #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the reconversion process and the amount of hydrogen coming out
-    # eta_ij , i = conv device type, j = energy medium
-    eta = 1/np.array([[eta_conversionammonia, eta_conversionliquid],
-                     [eta_reconversionammonia, eta_reconversionliquid]])
-    
-    volumefpsoliquid = electrolyzer.cell(row=15, column=2).value #FPSO volume per electrolyzer liquid hydrogen
-    volumefpsoammonia = electrolyzer.cell(row=16, column=2).value #FPSO volume per electrolyzer ammonia
-    nu = [volumefpsoammonia, volumefpsoliquid]
-    
-    ratiostoragefpsoliquid = fpso.cell(row=18, column=2).value #ratio storage tanks in m3/fpso volume in m3
-    ratiostoragefpsoammonia = fpso.cell(row=19, column=2).value #ratio storage tanks in m3/fpso volume in m3
-    phi = [ratiostoragefpsoammonia, ratiostoragefpsoliquid]
-    
-    capconvammonia = 10/12*ammonia.cell(row=10, column=2).value #yearly output capacity in tons of hydrogen per hour after conversion of one conversion installation for ammonia
-    capconvliquid = 10/12*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per hour after conversion of one conversion installation for liquid hydrogen
-    capreconvammonia = 10/12*ammonia.cell(row=75, column=2).value #yearly output capacity in tons of hydrogen per year after reconversion of one reconversion installation for ammonia
-    capreconvliquid = 10/12*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per year after reconversion of one reconversion installation for liquid hydrogen
-    
-    # Conversion
-    w11 = math.ceil(1.6*D/(eta[1][0]*capconvammonia))  # Ammonia
-    w12 = 1.6*D/(eta[1][1]*capconvliquid)   # Liquid
-    # Reconversion
-    w21 = D/capconvammonia # Ammonia
-    w22 = D/capconvammonia # Liquid
-    W = [[w11, w12], [w21, w22]]
-    
-    
-    #  For now the converters and reconverter amount is constant
-    WC = quicksum(W[i-1][E]*A[l][i-1][E] for i in I) 
-    
-    #%% --- Variables ---
-    
-    # # w[i,j]
-    # w = {}
-    # for i in I:
-    #     for j in J:
-    #         w[i,j] = model.addVar (lb = 0, vtype = GRB.INTEGER, name = 'w[' + str(i) + ',' + str(j) + ']' )
-    
-    # x[k]
-    x = {}
-    for k in K:
-        x[k] = model.addVar (lb = 0, vtype = GRB.INTEGER, name = 'x[' + str(k) + ']' )
+        #%% --- Model parameters and sets ---
         
-    # y[n]
-    y = {}
-    for n in N:
-        y[n] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'y[' + str(n) + ']' )
-    
-    PU = {}
-    for t in T:
-        PU[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PU[' + str(t) + ']' )
+        # Set model name
+        model = Model('GFPSO Cost Optimization')
         
-    # Power Generated (used to lower RHS values)
-    PG = {}
-    for t in T:
-        PG[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PG[' + str(t) + ']' )
-    
-    # Hydrogen produced
-    h = {}
-    for t in T:
-        h[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'h[' + str(t) + ']' )
-    
-    
-    
-    # %%  ---- Integrate new variables ----
-    model.update()
-    
-    # # ---- Objective Function ----
-    # # For now just setting year to first year in time period (l=0)
-    # # l = 1
-    # model.setObjective (WC + quicksum(x[k]*B[l][k-1] for k in K) + quicksum(y[n]*C[l][n-1] for n in N) + TC[l][E])
-    # model.modelSense = GRB.MINIMIZE
-    # model.update ()
-    
-    #%% --- Constraints ---
-    
-    for t in T:
-        model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2])
-        model.addConstr(PU[t] <= alpha[E]*PG[t])
-        model.addConstr(PU[t] <= beta*gamma*x[3])
-        model.addConstr(h[t] == PU[t]/gamma)
-    
-    model.addConstr(quicksum(h[t] for t in T) >= D/(eta[0][E]*eta[1][E]))  
-    
-    model.addConstr(x[4] >= x[3]*beta*epsilon)
-    
-    model.addConstr(y[2] == x[3]*nu[E])
-    
-    model.addConstr(y[1] == y[2]*phi[E])
-    
-    
-    #%% --- Run Optimization ---
-    model.update()
-    model.Params.NumericFocus = 1
-    model.Params.timeLimit = 400
-    # model.optimize()
-    
-    Result = []
-    hdata = pd.DataFrame(index=feedin.index) #for plotting the hydrogen production
-    exceldf = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
-    demandlocation = general.cell(row=17, column=2).value #location where hydrogen is asked
-    productionlocation = general.cell(row=15, column=2).value #location where hydrogen is produced
-    transferport = general.cell(row=16, column=2).value #port where hydrogen is transferred from sea to land transport
-    
-    list_of_df = []
-    df_1_test = pd.DataFrame(index=['df1header'])
-    df_2_test = pd.DataFrame(index=['df2header'])
-    
-    list_of_df.append(df_1_test)
-    list_of_df.append(df_2_test)
-    
-    
-    
-    transportmedium = str('')
-    if E == 0:
-        transportmedium = 'Ammonia'
-    elif E == 1:
-        transportmedium = 'Liquid_H2'
-    
-    # --- Objective function ---
-    
-    for l in L: 
-        model.reset()
-        model.setObjective (WC + quicksum(x[k]*B[l][k-1] for k in K) + quicksum(y[n]*C[l][n-1] for n in N) + TC[E][l])
-        model.modelSense = GRB.MINIMIZE
-        model.update ()
-        model.optimize()
-        Result.append(model.ObjVal)
-        exceldf[timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
-        dict_of_df[loc][timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
-
-    
-    #plot produced hydrogen
-    hvalues = np.empty(len(h), dtype=object)
-    for t in range(len(h)):
-        hvalues[t] = h[t].x
-    hdata['production'] = hvalues.tolist()
-    hdata.plot(title='')
-    plt.xlabel('Time')
-    plt.ylabel('Tons per hour')
-    
-    
-    
-    #%% --- Post-Processing ---
-    
-    # Data with latitude/longitude and values
-    # df = pd.read_csv('https://raw.githubusercontent.com/R-CoderDotCom/data/main/sample_datasets/population_galicia.csv')
-    
-    # data_file_csv = os.path.dirname(os.path.realpath('__file__')) + '\csv_files\heatmap1.csv'
-    # df = pd.read_csv(data_file_csv)
-    
-    df = pd.DataFrame(columns=['longitude','latitude','LCOH'],index=[list(range(size))])
-    
-    # Add resulting cost per kg of h2 in 2050
-    LCOH = dict_of_df[loc].loc['Costs per kg hydrogen (euros)',2050]
-    df.loc[counter,'LCOH'] = LCOH
-    df.loc[counter,'longitude'] = loc_matrix[0][counter][0]
-    df.loc[counter,'latitude'] = loc_matrix[0][counter][1]
-    
-    # dict_of_df[loc][timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
-    counter = counter + 1
-    # df.loc[0,'ObjVal'] = model.ObjVal
+        # ---- Sets ----
+        
+        I = [1, 2] # Conv devices (1: Conv, 2: Reconv)
+        J = [1, 2] # Energy Medium (1: Ammonia, 2: LiquidH2)
+        K = [1, 2, 3, 4] # Device types (1: Wind, 2: Solar, 3: Elec, 4: Desal)
+        L = range(Nsteps) # Years in time period
+        N = [1, 2] # Volume based equipment (1: Storage, 2: FPSO)
+        T = list(range(0,len(feedinarray))) # Operational hours in year
+        
+        # If medium choice is done as parameter
+        E = 0
+        
+        
+        # ---- Parameters ----
+        
+        # Cost parameters
+        
+        Cconvammonia = 10/12*np.array([float(cell.value) for cell in ammonia[48][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an ammonia conversion installation in 10^3 euros over several years
+        Cconvliquid = 10/12*np.array([float(cell.value) for cell in liquidhydrogen[61][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a liquid hydrogen conversion installation in 10^3 euros over several years
+        Creconvammonia = 10/12*np.array([float(cell.value) for cell in ammonia[111][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an ammonia conversion installation in 10^3 euros over several years
+        Creconvliquid = 10/12*np.array([float(cell.value) for cell in liquidhydrogen[125][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a liquid hydrogen conversion installation in 10^3 euros over several years
+        
+        # A_lij , l = year in time period, i = conversion device type, j = medium
+        A = []
+        for l in range(Nsteps):
+            Aarray = np.array([[Cconvammonia[l], Cconvliquid[l]], [Creconvammonia[l], Creconvliquid[l]]])
+            A.append(Aarray)
+        
+        Cs1 = 10/12*np.array([float(cell.value) for cell in solar[51][2:2+Nsteps]])
+        Cw1 = 10/12*np.array([float(cell.value) for cell in wind[48][2:2+Nsteps]])
+        Ce = 10/12*np.array([float(cell.value) for cell in electrolyzer[50][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an electrolyzer in 10^3 euros over several years
+        Cd = 10/12*np.array([float(cell.value) for cell in desalination[49][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a desalination installation in 10^3 euros over several years
+        
+        # B_lk , l = year in time period, k = device type (solar, wind, elec, desal)
+        B = []
+        for l in L:
+            Barray = np.array([Cw1[l], 
+                               Cs1[l], 
+                               Ce[l], 
+                               Cd[l]])
+            B.append(Barray)
+        
+        # C_ln
+        Cstliquid =  10/12*np.array([float(cell.value) for cell in storage[25][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of storage per m3 in euros over several years
+        Cstammonia =  10/12*np.array([float(cell.value) for cell in storage[54][2:2+Nsteps]])
+        Cfpso = 10/12* np.array([float(cell.value) for cell in fpso[53][2:2+Nsteps]]) #np.array([1,1,0.8,0.6,0.4]) #cost per year (depreciation+OPEX) of FPSO per m3 in 10^3 euros over several years
+        Cst = Cstammonia
+        
+        C = []
+        for l in L:
+            Carray = np.array([Cst[l], 
+                               Cfpso[l]])
+            C.append(Carray)
+        
+        # D , Yearly demand
+        demand = 10/12*general.cell(row=21, column=2).value #demand in tons of hydrogen per year
+        # D = demand
+        D = (10/12)*50000 # [tonH2/yr]\
+        
+        # --------
+        # # TC , Transport cost
+        
+        # coords_production = (general.cell(row=15, column=4).value, general.cell(row=15, column=5).value) #coordinates (latitude and longitude) of production location
+        # coords_port = (general.cell(row=16, column=4).value, general.cell(row=16, column=5).value) #coordinates (latitude and longitude) of port
+        # coords_demand = (general.cell(row=17, column=4).value, general.cell(row=17, column=5).value)  #coordinates (latitude and longitude) of demand location
+        # distanceseafactor = general.cell(row=25, column=2).value
+        # distancesea = distanceseafactor*geopy.distance.geodesic(coords_production, coords_port).km #distance to be travelled over sea from production to demand location in km
+        # distanceland = geopy.distance.geodesic(coords_port, coords_demand).km #distance to be travelled over land from production to demand location in km
+        
+        # Xtransport = demand #amount to be transported by ship in tons of hydrogen, assumed to be equal to demand as hydrogen losses are almost zero 
+        # Xkmsea = Xtransport*distancesea #yearly amount of tonkm to be made over sea
+        # Xkmland = demand*distanceland #yealy amount of tonkm over land
+        
+        # Ckmammonia = np.array([float(cell.value) for cell in ammonia[158][2:2+Nsteps]]) #costs per km of overseas transport of 1 ton of hydrogen as ammonia in 10^3 euros over several years
+        # Cbasetransportammonia = np.array([float(cell.value) for cell in ammonia[159][2:2+Nsteps]])
+        # Ckmliquid = np.array([float(cell.value) for cell in liquidhydrogen[168][2:2+Nsteps]]) #costs per km of overseas transport of 1 ton of hydrogen as liquid hydrogen in 10^3 euros over several years
+        # Cbasetransportliquid =  np.array([float(cell.value) for cell in liquidhydrogen[169][2:2+Nsteps]])
+        # Ckmland = np.array([float(cell.value) for cell in landtransport[33][2:2+Nsteps]]) #costs per year per km of overland pipeline for 1 ton of hydrogen
+        
+        # Ckmsea = [Ckmammonia, Ckmliquid] #costs per km of overseas transport, depending on whether ammonia or liquid hydrogen is chosen
+        # Cbasetransport = [Cbasetransportammonia, Cbasetransportliquid] #baserate of the transport per ton hydrogen
+        
+        # # # LocTC is a list of the transport costs at the different locations in region
+        # # LocTC = []
+        # # for Loc in loclist:
+        # #     Loc = tuple(Loc)
+        # #     distancesea = distanceseafactor*geopy.distance.geodesic(Loc, coords_port).km
+        # #     Xkmsea = Xtransport*distancesea
+            
+        # # TC_jl
+        # TC = []
+        # for j in J:
+        #     TCyear = Xtransport*Cbasetransport[j-1] + Xkmsea*Ckmsea[j-1] + Xkmland*Ckmland
+        #     TC.append(TCyear)
+        # ---------
+        
+        # LocTC.append(TC)
+            
+        # # TC_jl
+        # TC = []
+        # for j in J:
+        #     TCyear = Xtransport*Cbasetransport[j-1] + Xkmsea*Ckmsea[j-1] + Xkmland*Ckmland
+        #     TC.append(TCyear)
+            
+        
+        
+        # Non-cost parameters
+        fracpowerelectrolyzerliquid = electrolyzer.cell(row=11, column=2).value #fraction of energy used by electrolyzers when using liquid hydrogen
+        fracpowerelectrolyzerammonia = electrolyzer.cell(row=12, column=2).value #fraction of energy used by elecyrolyzers when using ammonia
+        alpha = [fracpowerelectrolyzerammonia, fracpowerelectrolyzerliquid]
+        
+        capelectrolyzerhour = electrolyzer.cell(row=9, column=2).value #hourly output capacity of electrolyzers in tons of hydrogen per hour
+        beta = capelectrolyzerhour
+        
+        electrolyzer_energy = 1000*electrolyzer.cell(row=7, column=2).value #energy requirement of electrolyzer in Wh per ton of hydrogen
+        gamma = electrolyzer_energy
+        
+        electrolyzer_water = electrolyzer.cell(row=6, column=2).value #water requirement of electrolyzer in m3 of water per ton of hydrogen
+        capdesalinationhour = desalination.cell(row=14, column=2).value #hourly output capacity desalination in m3 of water per hour
+        epsilon = electrolyzer_water/capdesalinationhour
+        
+        eta_conversionammonia = ammonia.cell(row=13, column=2).value #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the conversion process and the amount of hydrogen coming out
+        eta_conversionliquid =  liquidhydrogen.cell(row=16, column=2).value #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the conversion process and the amount of hydrogen coming out
+        eta_reconversionammonia = eta_conversionammonia #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the reconversion process and the amount of hydrogen coming out
+        eta_reconversionliquid = eta_conversionliquid #PLEAS NOTE THAT THESE ARE ACTUALLY EQUAL TO 1/ETA FOR PROGRAMMING PURPOSES conversion efficiency ratio between amount of hydrogen going into the reconversion process and the amount of hydrogen coming out
+        # eta_ij , i = conv device type, j = energy medium
+        eta = 1/np.array([[eta_conversionammonia, eta_conversionliquid],
+                         [eta_reconversionammonia, eta_reconversionliquid]])
+        
+        volumefpsoliquid = electrolyzer.cell(row=15, column=2).value #FPSO volume per electrolyzer liquid hydrogen
+        volumefpsoammonia = electrolyzer.cell(row=16, column=2).value #FPSO volume per electrolyzer ammonia
+        nu = [volumefpsoammonia, volumefpsoliquid]
+        
+        ratiostoragefpsoliquid = fpso.cell(row=18, column=2).value #ratio storage tanks in m3/fpso volume in m3
+        ratiostoragefpsoammonia = fpso.cell(row=19, column=2).value #ratio storage tanks in m3/fpso volume in m3
+        phi = [ratiostoragefpsoammonia, ratiostoragefpsoliquid]
+        
+        capconvammonia = 10/12*ammonia.cell(row=10, column=2).value #yearly output capacity in tons of hydrogen per hour after conversion of one conversion installation for ammonia
+        capconvliquid = 10/12*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per hour after conversion of one conversion installation for liquid hydrogen
+        capreconvammonia = 10/12*ammonia.cell(row=75, column=2).value #yearly output capacity in tons of hydrogen per year after reconversion of one reconversion installation for ammonia
+        capreconvliquid = 10/12*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per year after reconversion of one reconversion installation for liquid hydrogen
+        
+        # Conversion
+        w11 = math.ceil(1.6*D/(eta[1][0]*capconvammonia))  # Ammonia
+        w12 = 1.6*D/(eta[1][1]*capconvliquid)   # Liquid
+        # Reconversion
+        w21 = D/capconvammonia # Ammonia
+        w22 = D/capconvammonia # Liquid
+        W = [[w11, w12], [w21, w22]]
+        
+        
+        #  For now the converters and reconverter amount is constant
+        WC = quicksum(W[i-1][E]*A[l][i-1][E] for i in I) 
+        
+        #%% --- Variables ---
+        
+        # # w[i,j]
+        # w = {}
+        # for i in I:
+        #     for j in J:
+        #         w[i,j] = model.addVar (lb = 0, vtype = GRB.INTEGER, name = 'w[' + str(i) + ',' + str(j) + ']' )
+        
+        # x[k]
+        x = {}
+        for k in K:
+            x[k] = model.addVar (lb = 0, vtype = GRB.INTEGER, name = 'x[' + str(k) + ']' )
+            
+        # y[n]
+        y = {}
+        for n in N:
+            y[n] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'y[' + str(n) + ']' )
+        
+        PU = {}
+        for t in T:
+            PU[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PU[' + str(t) + ']' )
+            
+        # Power Generated (used to lower RHS values)
+        PG = {}
+        for t in T:
+            PG[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PG[' + str(t) + ']' )
+        
+        # Hydrogen produced
+        h = {}
+        for t in T:
+            h[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'h[' + str(t) + ']' )
+        
+        
+        
+        # %%  ---- Integrate new variables ----
+        model.update()
+        
+        # # ---- Objective Function ----
+        # # For now just setting year to first year in time period (l=0)
+        # # l = 1
+        # model.setObjective (WC + quicksum(x[k]*B[l][k-1] for k in K) + quicksum(y[n]*C[l][n-1] for n in N) + TC[l][E])
+        # model.modelSense = GRB.MINIMIZE
+        # model.update ()
+        
+        #%% --- Constraints ---
+        
+        for t in T:
+            model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2])
+            model.addConstr(PU[t] <= alpha[E]*PG[t])
+            model.addConstr(PU[t] <= beta*gamma*x[3])
+            model.addConstr(h[t] == PU[t]/gamma)
+        
+        model.addConstr(quicksum(h[t] for t in T) >= D/(eta[0][E]*eta[1][E]))  
+        
+        model.addConstr(x[4] >= x[3]*beta*epsilon)
+        
+        model.addConstr(y[2] == x[3]*nu[E])
+        
+        model.addConstr(y[1] == y[2]*phi[E])
+        
+        
+        #%% --- Run Optimization ---
+        model.update()
+        model.Params.NumericFocus = 1
+        model.Params.timeLimit = 400
+        # model.optimize()
+        
+        Result = []
+        hdata = pd.DataFrame(index=feedin.index) #for plotting the hydrogen production
+        exceldf = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
+        demandlocation = general.cell(row=17, column=2).value #location where hydrogen is asked
+        productionlocation = general.cell(row=15, column=2).value #location where hydrogen is produced
+        transferport = general.cell(row=16, column=2).value #port where hydrogen is transferred from sea to land transport
+        
+        list_of_df = []
+        df_1_test = pd.DataFrame(index=['df1header'])
+        df_2_test = pd.DataFrame(index=['df2header'])
+        
+        list_of_df.append(df_1_test)
+        list_of_df.append(df_2_test)
+        
+        
+        
+        transportmedium = str('')
+        if E == 0:
+            transportmedium = 'Ammonia'
+        elif E == 1:
+            transportmedium = 'Liquid_H2'
+        
+        # --- Objective function ---
+        
+        for l in L: 
+            model.reset()
+            model.setObjective (WC + quicksum(x[k]*B[l][k-1] for k in K) + quicksum(y[n]*C[l][n-1] for n in N) + TC[E][l])
+            model.modelSense = GRB.MINIMIZE
+            model.update ()
+            model.optimize()
+            Result.append(model.ObjVal)
+            exceldf[timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
+            dict_of_df[loc][timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
+            print('------- Completed run: ', l, ' out of ', L )
+            
+        print('--------- Completed horizontal runs: ', vert, 'out of ', range(size))
+        #plot produced hydrogen
+        hvalues = np.empty(len(h), dtype=object)
+        for t in range(len(h)):
+            hvalues[t] = h[t].x
+        hdata['production'] = hvalues.tolist()
+        hdata.plot(title='')
+        plt.xlabel('Time')
+        plt.ylabel('Tons per hour')
+        
+        
+        
+        #%% --- Post-Processing ---
+        
+        # Data with latitude/longitude and values
+        # df = pd.read_csv('https://raw.githubusercontent.com/R-CoderDotCom/data/main/sample_datasets/population_galicia.csv')
+        
+        # data_file_csv = os.path.dirname(os.path.realpath('__file__')) + '\csv_files\heatmap1.csv'
+        # df = pd.read_csv(data_file_csv)
+        
+        df = pd.DataFrame(columns=['longitude','latitude','LCOH'],index=[list(range(size))])
+        
+        # Add resulting cost per kg of h2 in 2050
+        LCOH = dict_of_df[loc].loc['Costs per kg hydrogen (euros)',2050]
+        df.loc[counter,'LCOH'] = LCOH
+        df.loc[counter,'longitude'] = loc_matrix[vert][counter][0]
+        df.loc[counter,'latitude'] = loc_matrix[vert][counter][1]
+        
+        list_vert_locs.append(dict_of_df)
+        # dict_of_df[loc][timestep*l+Startyear] = [demand*12/10,demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*12/10, model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
+        counter = counter + 1
+        # df.loc[0,'ObjVal'] = model.ObjVal
 
 df.to_csv("test_csv.csv")
 
@@ -809,19 +816,52 @@ fig.show()
 
 #%%
 counter = 0
-for loc in loc_matrix[0]:
-    LCOH = dict_of_df[loc].loc['Costs per kg hydrogen (euros)',2050]
-    df.loc[counter,'LCOH'] = LCOH
-    df.loc[counter,'longitude'] = loc_matrix[0][counter][0]
-    df.loc[counter,'latitude'] = loc_matrix[0][counter][1]
-    counter = counter + 1
+# list_dfs = []
+# for vert in range(size):
+#     for i in range(len(list_vert_locs)):
+#         for j in range(size):
+#             list_dfs.append(list_vert_locs[i][loc_matrix[vert][j]])
 
-fig = px.density_mapbox(df, lat = 'latitude', lon = 'longitude', z = 'LCOH',
+list_dfs2 = []
+for vert in range(size):
+    for j in range(size):
+        # print(counter)
+        print('Iteration: ', counter, ' Location: ', loc_matrix[vert][j]) 
+        list_dfs2.append(list_vert_locs[counter][loc_matrix[vert][j]])
+        counter = counter + 1
+
+counter = 0
+df_full = pd.DataFrame(columns=['longitude','latitude','LCOH'],index=[list(range(441))])
+for vert in range(size):
+    counter2=0
+    for j in range(size):
+        # print(counter)
+        print('Iteration: ', counter, ' Location: ', loc_matrix[vert][j], 'LCOH: ', list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]) 
+        # list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]
+        LCOH = list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]
+        df_full.loc[counter,'LCOH'] = LCOH
+        df_full.loc[counter,'longitude'] = loc_matrix[vert][counter2][0]
+        df_full.loc[counter,'latitude'] = loc_matrix[vert][counter2][1]
+        counter2 = counter2 + 1     
+        counter = counter + 1      
+        
+df_full_backup = df_full
+df_full = df_full_backup
+avg = df_full['LCOH'].mean()
+# df_full['LCOH'] = df_full['LCOH'].apply(lambda x: x-avg)      
+# df_full['LCOH'] = df_full['LCOH'].apply(lambda x: x*100)  
+
+fig = px.density_mapbox(df_full, lat = 'latitude', lon = 'longitude', z = 'LCOH',
                         radius = 7,
                         center = dict(lat = 26.81, lon = 126.94),
                         zoom = 3,
                         mapbox_style = 'open-street-map',
                         color_continuous_scale = 'rainbow')
+# fig = px.scatter_mapbox(df_full, lat = 'latitude', lon = 'longitude', size = 'LCOH',
+#                         center = dict(lat = 26.81, lon = 126.94),
+#                         zoom = 3,
+#                         mapbox_style="carto-positron",
+#                         color_continuous_scale=px.colors.cyclical.IceFire)
 
 # Usage location
 fig.add_trace(go.Scattermapbox(
@@ -836,3 +876,37 @@ fig.add_trace(go.Scattermapbox(
 
 pio.renderers.default='browser'
 fig.show()
+
+df_full.to_csv("df_full_csv.csv")
+
+
+
+# list_vert_locs
+
+# for loc in loc_matrix[vert]:
+#     LCOH = dict_of_df[loc].loc['Costs per kg hydrogen (euros)',2050]
+#     df.loc[counter,'LCOH'] = LCOH
+#     df.loc[counter,'longitude'] = loc_matrix[vert][counter][0]
+#     df.loc[counter,'latitude'] = loc_matrix[vert][counter][1]
+#     counter = counter + 1
+
+# fig = px.density_mapbox(df, lat = 'latitude', lon = 'longitude', z = 'LCOH',
+#                         radius = 7,
+#                         center = dict(lat = 26.81, lon = 126.94),
+#                         zoom = 3,
+#                         mapbox_style = 'open-street-map',
+#                         color_continuous_scale = 'rainbow')
+
+# # Usage location
+# fig.add_trace(go.Scattermapbox(
+#         lat=[35.64],
+#         lon=[139.8],
+#         mode='markers',
+#         marker=dict(size=10, color="Orange"),
+#         name="Usage Location",
+    
+#     ))
+
+
+# pio.renderers.default='browser'
+# fig.show()
