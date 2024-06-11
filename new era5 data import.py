@@ -66,11 +66,11 @@ start_date, end_date = '2020-01-01', '2020-01-30'
 # set variable set to download (feedinlib: both solar and wind)
 variable = "feedinlib"
 
-target_file = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc'
+target_file = 'Era 5 test data\ERA5_weather_data_test_RegTokyo1.nc'
 
 #%%
 
-# get pvlib data for specified area
+# get pvlib data for specified region
 ds = era5.get_era5_data_from_datespan_and_position(
     variable=variable,
     start_date=start_date, end_date=end_date,

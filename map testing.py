@@ -12,6 +12,8 @@ from folium import plugins
 from folium.plugins import HeatMap
 import folium
 
+#%%
+
 # Generate some example data
 longitudes = np.linspace(116.94, 136.94, 21)
 # longitudes = df_full['longitude'].to_numpy()
@@ -36,7 +38,7 @@ data_reverse = data.iloc[::-1]
 
 # Plotting the heatmap
 plt.figure(figsize=(12, 8))
-sns.heatmap(data_reverse, xticklabels=data_reverse.columns, yticklabels=data_reverse.index, cmap="viridis", cbar_kws={'label': 'LCOH'})
+sns.heatmap(data_reverse, xticklabels=data_reverse.columns, yticklabels=data_reverse.index, cmap="flare", cbar_kws={'label': 'LCOH'})
 
 plt.title('Heatmap of LCOH')
 plt.xlabel('Longitude')
@@ -46,9 +48,9 @@ plt.yticks(rotation=0)
 plt.show()
 #%%
 
-avg = df_full['LCOH'].mean()
-df_full['LCOH'] = df_full['LCOH'].apply(lambda x: x-avg)      
-df_full['LCOH'] = df_full['LCOH'].apply(lambda x: x*100) 
+# avg = df_full['LCOH'].mean()
+# df_full['LCOH'] = df_full['LCOH'].apply(lambda x: x-avg)      
+# df_full['LCOH'] = df_full['LCOH'].apply(lambda x: x*100) 
 
 lats = df_full['latitude'].to_numpy()
 longs = df_full['longitude'].to_numpy()
