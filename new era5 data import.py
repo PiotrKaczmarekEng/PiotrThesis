@@ -43,18 +43,12 @@ while it < 11:
     it = it+1
     
 
-i = i+1
-
--10
--9
--8
--7
 
 
 # Region for study
 LatRegSouth = latitude-10
 LatRegNorth = latitude+10
-LonRegWest = longitude+10
+LonRegWest = longitude-10
 LonRegEast = longitude+10
 
 latitude = [LatRegSouth, LatRegNorth]  # [latitude south, latitude north]
@@ -66,7 +60,7 @@ start_date, end_date = '2020-01-01', '2020-01-30'
 # set variable set to download (feedinlib: both solar and wind)
 variable = "feedinlib"
 
-target_file = 'Era 5 test data\ERA5_weather_data_test_RegTokyo1.nc'
+target_file = 'Era 5 test data\ERA5_weather_data_test_RegTokyo_Corrected.nc'
 
 #%%
 

@@ -27,6 +27,21 @@ import plotly.express as px
 import plotly.io as pio
 import plotly.graph_objects as go
 
+
+import warnings
+
+def fxn():
+    warnings.warn("deprecated", DeprecationWarning)
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    fxn()
+
+# # Or if you are using > Python 3.11:
+# with warnings.catch_warnings(action="ignore"):
+#     fxn()
+
+
 #%% --- Excel Parameters ---
 
 #loading excel to later retrieve input data using openpyxl
@@ -73,7 +88,7 @@ start_date, end_date = '2020-01-01', '2020-01-30'  #Test data of 1 month
 # set variable set to download
 variable = 'feedinlib'
 
-era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc' #referring to file with weather data downloaded earlier using the ERA5 API
+era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo_Corrected.nc' #referring to file with weather data downloaded earlier using the ERA5 API
 # era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
 
 
@@ -191,11 +206,11 @@ def func_Feedin_index(location):
     feedinarray = multsolar*feedin.values #hourly energy production over the year of 1 solar platform of the specified kind in the specified location
     feedinarray[feedinarray<0]=0
     
-    #plotting PV power generation
-    plt.figure()
-    feedin.plot(title='PV feed-in')
-    plt.xlabel('Time')
-    plt.ylabel('Power in W');
+    # #plotting PV power generation
+    # plt.figure()
+    # feedin.plot(title='PV feed-in')
+    # plt.xlabel('Time')
+    # plt.ylabel('Power in W');
     
     feedin_index = feedin.index
     
@@ -285,7 +300,7 @@ def func_Wind(location):
     }
     my_turbine = WindTurbine(**turbine_data)
     
-    #getting the needed weather data for PV calculations from the file as downloaded with a seperate script from ERA5
+    #getting the needed weather data for wind power calculations from the file as downloaded with a seperate script from ERA5
     windpowerlib_df = era5.weather_df_from_era5(
         era5_netcdf_filename=era5_netcdf_filename,
         lib='windpowerlib', area=list(location))
@@ -800,6 +815,7 @@ for vert in range(size):
         model.update()
         model.Params.NumericFocus = 1
         model.Params.timeLimit = 400
+        model.setParam( 'OutputFlag', False) # silencing gurobi output or not
         # model.optimize()
         
         Result = []
@@ -829,16 +845,16 @@ for vert in range(size):
             exceldf[timestep*l+Startyear] = [demand*(1/DataYearRatio),demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*(1/DataYearRatio), model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
             dict_of_df[loc][timestep*l+Startyear] = [demand*(1/DataYearRatio),demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*(1/DataYearRatio), model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
             print('------- Completed run: ', l+1, ' out of ', max(L)+1 )
-            
-        print('--------- Completed horizontal runs: ', vert+1, 'out of ', size)
-        #plot produced hydrogen
-        hvalues = np.empty(len(h), dtype=object)
-        for t in range(len(h)):
-            hvalues[t] = h[t].x
-        hdata['production'] = hvalues.tolist()
-        hdata.plot(title='')
-        plt.xlabel('Time')
-        plt.ylabel('Tons per hour')
+        print('--------- Completed horizontal loc runs: ', loc[0]-longitude+11, 'out of ', size)    
+        print('--------- Completed vertical loc runs: ', vert+1, 'out of ', size)
+        # #plot produced hydrogen
+        # hvalues = np.empty(len(h), dtype=object)
+        # for t in range(len(h)):
+        #     hvalues[t] = h[t].x
+        # hdata['production'] = hvalues.tolist()
+        # hdata.plot(title='')
+        # plt.xlabel('Time')
+        # plt.ylabel('Tons per hour')
         
         
         
@@ -910,7 +926,7 @@ for vert in range(size):
     counter2=0
     for j in range(size):
         # print(counter)
-        print('Iteration: ', counter, ' Location: ', loc_matrix[vert][j], 'LCOH: ', list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]) 
+        # print('Iteration: ', counter, ' Location: ', loc_matrix[vert][j], 'LCOH: ', list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]) 
         # list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]
         LCOH = list_dfs2[counter].loc['Costs per kg hydrogen (euros)',2050]
         df_full.loc[counter,'LCOH'] = LCOH
