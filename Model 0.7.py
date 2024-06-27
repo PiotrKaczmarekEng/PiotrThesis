@@ -963,7 +963,7 @@ fig.add_trace(
         hoverinfo="skip",
         marker={
             "color": df_full["LCOH"],
-            "size": df_full["LCOH"].fillna(0),
+            "size": df_full["LCOH"].fillna(0).infer_objects(copy=False),
             "coloraxis": "coloraxis",
             # desired max size is 15. see https://plotly.com/python/bubble-maps/#united-states-bubble-map
             "sizeref": (df_full["LCOH"].max()) / 15 ** 2,

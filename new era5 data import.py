@@ -27,8 +27,12 @@ import cdsapi
 #longitude = -47.79
 
 #japan
-latitude = 26.81
-longitude = 126.94
+# latitude = 26.81
+# longitude = 126.94
+
+# North-Sea
+latitude = 54.35
+longitude = 6.28
 
 # Region for study discretized
 
@@ -60,7 +64,7 @@ start_date, end_date = '2020-01-01', '2020-01-30'
 # set variable set to download (feedinlib: both solar and wind)
 variable = "feedinlib"
 
-target_file = 'Era 5 test data\ERA5_weather_data_test_RegTokyo_Corrected.nc'
+target_file = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc'
 
 #%%
 
@@ -73,66 +77,66 @@ ds = era5.get_era5_data_from_datespan_and_position(
 
 #%%
 
-# get windpowerlib data for specified location
-ds = era5.get_era5_data_from_datespan_and_position(
-    variable=variable,
-    start_date=start_date, end_date=end_date,
-    latitude=latitude, longitude=longitude,
-    target_file=target_file)
-
-# latitude = [0, 90]  # [latitude south, latitude north]
-# longitude = [40, 10]  # [longitude west, longitude east]
-
-# # get pvlib data for specified area
+# # get windpowerlib data for specified location
 # ds = era5.get_era5_data_from_datespan_and_position(
 #     variable=variable,
 #     start_date=start_date, end_date=end_date,
 #     latitude=latitude, longitude=longitude,
 #     target_file=target_file)
 
+# # latitude = [0, 90]  # [latitude south, latitude north]
+# # longitude = [40, 10]  # [longitude west, longitude east]
 
-# set start and end date (end date will be included
-# in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-01-02'
-# set variable set to download
-variable = "feedinlib"
+# # # get pvlib data for specified area
+# # ds = era5.get_era5_data_from_datespan_and_position(
+# #     variable=variable,
+# #     start_date=start_date, end_date=end_date,
+# #     latitude=latitude, longitude=longitude,
+# #     target_file=target_file)
 
-target_file = 'ERA5_weather_data_complete_1day.nc'
 
-# get feedinlib data (includes pvlib and windpowerlib data)
-# for the whole world
-ds = era5.get_era5_data_from_datespan_and_position(
-    variable="feedinlib",
-    start_date=start_date, end_date=end_date,
-    target_file=target_file)
+# # set start and end date (end date will be included
+# # in the time period for which data is downloaded)
+# start_date, end_date = '2020-01-01', '2020-01-02'
+# # set variable set to download
+# variable = "feedinlib"
 
+# target_file = 'ERA5_weather_data_complete_1day.nc'
+
+# # get feedinlib data (includes pvlib and windpowerlib data)
+# # for the whole world
 # ds = era5.get_era5_data_from_datespan_and_position(
 #     variable="feedinlib",
-#     start_date='2015-01-01', end_date='2015-12-12',
-#     target_file='ERA5_weather_data.nc')
+#     start_date=start_date, end_date=end_date,
+#     target_file=target_file)
 
-# era5_netcdf_filename = 'ERA5_weather_data.nc'
+# # ds = era5.get_era5_data_from_datespan_and_position(
+# #     variable="feedinlib",
+# #     start_date='2015-01-01', end_date='2015-12-12',
+# #     target_file='ERA5_weather_data.nc')
 
-# area = [13.5, 52.4] #location of production
+# # era5_netcdf_filename = 'ERA5_weather_data.nc'
 
-# windpowerlib_df = era5.weather_df_from_era5(
-#     era5_netcdf_filename='ERA5_weather_data.nc',
-#     lib='windpowerlib', area=area)
+# # area = [13.5, 52.4] #location of production
 
-# pvlib_df = era5.weather_df_from_era5(
-#     era5_netcdf_filename='ERA5_weather_data.nc',
-#     lib='pvlib', area=area)
+# # windpowerlib_df = era5.weather_df_from_era5(
+# #     era5_netcdf_filename='ERA5_weather_data.nc',
+# #     lib='windpowerlib', area=area)
 
-# #matplotlib inline
-# pvlib_df.loc[:, ['dhi', 'ghi']].plot(title='Irradiance')
-# plt.xlabel('Time')
-# plt.ylabel('Irradiance in $W/m^2$');
+# # pvlib_df = era5.weather_df_from_era5(
+# #     era5_netcdf_filename='ERA5_weather_data.nc',
+# #     lib='pvlib', area=area)
 
-
-# feedin = pv_system.feedin(
-#     weather=pvlib_df,
-#     location=(latitude, longitude))
+# # #matplotlib inline
+# # pvlib_df.loc[:, ['dhi', 'ghi']].plot(title='Irradiance')
+# # plt.xlabel('Time')
+# # plt.ylabel('Irradiance in $W/m^2$');
 
 
+# # feedin = pv_system.feedin(
+# #     weather=pvlib_df,
+# #     location=(latitude, longitude))
 
-#https://feedinlib.readthedocs.io/en/features-design-skeleton/load_era5_weather_data.html
+
+
+# #https://feedinlib.readthedocs.io/en/features-design-skeleton/load_era5_weather_data.html

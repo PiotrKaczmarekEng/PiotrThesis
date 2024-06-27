@@ -67,8 +67,19 @@ timestep = general.cell(row=11, column=2).value #time step of simulation in year
 Nsteps = int(timeperiod/timestep+1) #number of time steps (important for data selection from excel and loop at the end)
 
 # Coordinates production location
-latitude =  26.81
-longitude = 126.94
+
+# # Tokyo
+# latitude =  26.81
+# longitude = 126.94
+
+# North-Sea case
+latitude = 54.35
+longitude = 6.28
+#  Eemshaven (Groningen)
+coords_demand = (53.43, 6.84) 
+# #  Port of Rotterdam
+# coords_demand = (51.95, 4.14) 
+
 # Solar and Wind 
 multsolar = 524*1000/206.7989   # Installed capacity per unit [kWp] * 1000 (to make it MW) / capacity from PVlib [kWp]
 multwind = 12/3   # Capacity per unit [MW] / capacity from Windlib [MW]
@@ -480,9 +491,15 @@ def func_Wind(location):
 
 # TC , Transport cost
 
-coords_production = (general.cell(row=15, column=4).value, general.cell(row=15, column=5).value) #coordinates (latitude and longitude) of production location
-coords_port = (general.cell(row=16, column=4).value, general.cell(row=16, column=5).value) #coordinates (latitude and longitude) of port
-coords_demand = (general.cell(row=17, column=4).value, general.cell(row=17, column=5).value)  #coordinates (latitude and longitude) of demand location
+# coords_production = (general.cell(row=15, column=4).value, general.cell(row=15, column=5).value) #coordinates (latitude and longitude) of production location
+# coords_port = (general.cell(row=16, column=4).value, general.cell(row=16, column=5).value) #coordinates (latitude and longitude) of port
+# coords_demand = (general.cell(row=17, column=4).value, general.cell(row=17, column=5).value)  #coordinates (latitude and longitude) of demand location
+
+coords_production = (latitude, longitude)
+coords_port = (53.43, 6.84) 
+coords_demand = (53.43, 6.84)  
+
+
 distanceseafactor = general.cell(row=25, column=2).value
 distancesea = distanceseafactor*geopy.distance.geodesic(coords_production, coords_port).km #distance to be travelled over sea from production to demand location in km
 distanceland = geopy.distance.geodesic(coords_port, coords_demand).km #distance to be travelled over land from production to demand location in km
@@ -497,7 +514,14 @@ Ckmliquid = np.array([float(cell.value) for cell in liquidhydrogen[168][2:2+Nste
 Cbasetransportliquid =  np.array([float(cell.value) for cell in liquidhydrogen[169][2:2+Nsteps]])
 Ckmland = np.array([float(cell.value) for cell in landtransport[33][2:2+Nsteps]]) #costs per year per km of overland pipeline for 1 ton of hydrogen
 
-Ckmsea = [Ckmammonia, Ckmliquid] #costs per km of overseas transport, depending on whether ammonia or liquid hydrogen is chosen
+# Changes by transport mode: pipeline, vs shipping
+# Shipping cost
+Ckmsea = [Ckmammonia, Ckmliquid] #costs per ton per km of overseas transport, depending on whether ammonia or liquid hydrogen is chosen
+# Pipeline cost 1.5 million per km
+# Ckmsea = [15]
+
+
+
 Cbasetransport = [Cbasetransportammonia, Cbasetransportliquid] #baserate of the transport per ton hydrogen
 
 J = [1, 2]
@@ -948,7 +972,7 @@ fig = px.density_mapbox(df_full, lat = 'latitude', lon = 'longitude', z = 'LCOH'
                         center = dict(lat = 26.81, lon = 126.94),
                         zoom = 3,
                         mapbox_style = 'open-street-map',
-                        color_continuous_scale = 'RdBu')
+                        color_continuous_scale = 'Rainbow')
 
 
 
