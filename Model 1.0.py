@@ -88,7 +88,7 @@ multsolar = 524*1000/206.7989   # Installed capacity per unit [kWp] * 1000 (to m
 multwind = 12/3   # Capacity per unit [MW] / capacity from Windlib [MW]
 
 # Set to the time period ratio of the CDS dataset considered (1/12 means 1 month)
-DataYearRatio = 1/12
+DataYearRatio = 9/12
 
 # Demand parameter (needed for now for transport calculation)
 demand = DataYearRatio*general.cell(row=21, column=2).value #demand in tons of hydrogen per year
@@ -113,7 +113,7 @@ Total_CAPEX_MW = Total_CAPEX * 1000
 # OPEX [Eur/MW] in 2020
 Avg_OPEX = 135000
 r = 0.08 # Interest rate
-lftm = 25
+lftm = 25 # lifetime of turbine
 
 
 #### Computation
@@ -187,15 +187,15 @@ def rel_wind_array(SY, NS, TS, WiCo):
 
 # set start and end date (end date will be included
 # in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-01-30'  #Test data of 1 month
+start_date, end_date = '2020-01-01', '2020-09-30'  #Test data of 1 month
 # start_date, end_date = '2020-01-01', '2020-10-31'
 # set variable set to download
 variable = 'feedinlib'
 
 # era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo_Corrected.nc' #referring to file with weather data downloaded earlier using the ERA5 API
 # era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
-era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc' #North-Sea Case data
-
+# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc' #North-Sea Case data
+era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010120-300920.nc' #North-Sea Case data 9 months
 
 area = [longitude, latitude]
     
@@ -247,11 +247,11 @@ def func_PV(location):
     feedinarray = multsolar*feedin.values #hourly energy production over the year of 1 solar platform of the specified kind in the specified location
     feedinarray[feedinarray<0]=0
     
-    # #plotting PV power generation
-    # plt.figure()
-    # feedin.plot(title='PV feed-in')
-    # plt.xlabel('Time')
-    # plt.ylabel('Power in W');
+    #plotting PV power generation
+    plt.figure()
+    feedin.plot(title='PV feed-in '+str(location))
+    plt.xlabel('Time')
+    plt.ylabel('Power in W');
     
     feedin_index = feedin.index
     
@@ -260,6 +260,7 @@ def func_PV(location):
 # feedinarray = func_PV(area)
 
 #%% Feedin Index function
+
 
 def func_Feedin_index(location):
     
@@ -305,18 +306,81 @@ def func_Feedin_index(location):
         weather=pvlib_df,
         location=(location[1], location[0]))
     
-    feedinarray = multsolar*feedin.values #hourly energy production over the year of 1 solar platform of the specified kind in the specified location
-    feedinarray[feedinarray<0]=0
-    
-    # #plotting PV power generation
-    # plt.figure()
-    # feedin.plot(title='PV feed-in')
-    # plt.xlabel('Time')
-    # plt.ylabel('Power in W');
-    
     feedin_index = feedin.index
     
     return feedin_index    
+
+#%% --- (OLD) Solar Generation ---
+
+# # get modules
+# module_df = get_power_plant_data(dataset='SandiaMod') #retrieving dataset for PV modules
+
+# # get inverter data
+# inverter_df = get_power_plant_data(dataset='cecinverter') #retrieving dataset for inverters
+
+# temp_params = pvlib.temperature.TEMPERATURE_MODEL_PARAMETERS['sapm']['open_rack_glass_polymer'] #defining temperature model parameters (leaving at default causes errors)
+
+# #PV system definition
+# system_data = {
+#     'module_name': 'Advent_Solar_Ventura_210___2008_',  # module name as in database
+#     'inverter_name': 'ABB__MICRO_0_25_I_OUTD_US_208__208V_',  # inverter name as in database
+#     'azimuth': 180, #angle of sun position with north in horizontal plane
+#     'tilt': 30, #angle of solar panels with horizontal
+#     'albedo': 0.075, #albedo (fraction of sun light reflected) of ocean water (https://geoengineering.global/ocean-albedo-modification/)
+#     'temperature_model_parameters': temp_params,
+# }
+
+
+# pv_system = Photovoltaic(**system_data)
+
+# #getting the needed weather data for PV calculations from the file as downloaded with a seperate script from ERA5
+# pvlib_df = era5.weather_df_from_era5(     
+#     era5_netcdf_filename=era5_netcdf_filename,
+#     lib='pvlib', area=area)
+
+# #determining the zenith angle (angle of sun position with vertical in vertical plane) in the specified locations for the time instances downloaded from ERA5
+# zenithcalc = pvlib.solarposition.get_solarposition(time=pvlib_df.index,latitude=latitude, longitude=longitude, altitude=None, pressure=None, method='nrel_numpy', temperature=pvlib_df['temp_air'])
+
+# #determining DNI from GHI, DHI and zenith angle for the time instances downloaded from ERA5
+# dni = pvlib.irradiance.dni(pvlib_df['ghi'],pvlib_df['dhi'], zenith=zenithcalc['zenith'], clearsky_dni=None, clearsky_tolerance=1.1, zenith_threshold_for_zero_dni=88.0, zenith_threshold_for_clearsky_limit=80.0)
+
+# #adding DNI to dataframe with PV weather data
+# pvlib_df['dni'] = dni
+
+# #replacing 'NAN' in DNI column with 0 to prevent 'holes' in graphs (NANs are caused by the zenith angle being larger than the 'zenith threshold for zero dni' angle set with GHI and DHI not yet being zero. The DNI should be 0 in that case)
+# pvlib_df['dni'] = pvlib_df['dni'].fillna(0)
+
+# #plotting dhi and ghi
+# plt.figure
+# pvlib_df.loc[:, ['dhi', 'ghi']].plot(title='Irradiance')
+# plt.xlabel('Time')
+# plt.ylabel('Irradiance in $W/m^2$');
+
+# #determining PV power generation
+# feedin = pv_system.feedin(
+#     weather=pvlib_df,
+#     location=(latitude, longitude))
+
+# #plotting PV power generation
+# plt.figure()
+# feedin.plot(title='PV feed-in')
+# plt.xlabel('Time')
+# plt.ylabel('Power in W');
+
+# #calculating total PV power generated in selected period
+# PVpower = pd.Series.sum(feedin) #power produced over time period in Wh
+
+# print('One panel with the chosen input parameters in location', latitude,',',longitude, 'will produce',PVpower,'Wh of electricity between', start_date, 'and', end_date )
+
+
+
+# feedinarray = multsolar*feedin.values #hourly energy production over the year of 1 solar platform of the specified kind in the specified location
+# feedinarray[feedinarray<0]=0
+    
+#     # return feedinarray
+
+# # feedinlist.append(feedinarray)
+
 #%% --- Wind function ---
 
 def func_Wind(location):
@@ -374,7 +438,219 @@ def func_Wind(location):
     
     return my_turbinearray
 
+#%% TEST Windpower same for all longitudes
 
+# location = area # long, lat
+    
+# def func_Wind_df(location):
+#     df = get_turbine_types(print_out=False)
+    
+#     #defining the wind turbine system
+#     turbine_data= {
+#         "turbine_type": "E-101/3050",  # turbine type as in register
+#         "hub_height": 130,  # in m
+#     }
+#     my_turbine = WindTurbine(**turbine_data)
+    
+#     #getting the needed weather data for PV calculations from the file as downloaded with a seperate script from ERA5
+#     windpowerlib_df = era5.weather_df_from_era5(
+#         era5_netcdf_filename=era5_netcdf_filename,
+#         lib='windpowerlib', area=list(location))
+    
+#     #increasing the time indices by half an hour because then they match the pvlib time indices so the produced energy can be added later
+#     #assumed wind speeds half an hour later are similar and this will not affect the results significantly
+#     windpowerlib_df.index = windpowerlib_df.index + timedelta(minutes=30)
+    
+#     # power output calculation for e126
+    
+#     # own specifications for ModelChain setup
+#     modelchain_data = {
+#         'wind_speed_model': 'logarithmic',      # 'logarithmic' (default),
+#                                                 # 'hellman' or
+#                                                 # 'interpolation_extrapolation'
+#         'density_model': 'ideal_gas',           # 'barometric' (default), 'ideal_gas'
+#                                                 #  or 'interpolation_extrapolation'
+#         'temperature_model': 'linear_gradient', # 'linear_gradient' (def.) or
+#                                                 # 'interpolation_extrapolation'
+#         'power_output_model': 'power_curve',    # 'power_curve' (default) or
+#                                                 # 'power_coefficient_curve'
+#         'density_correction': True,             # False (default) or True
+#         'obstacle_height': 0,                   # default: 0
+#         'hellman_exp': None}                    # None (default) or None
+    
+#     # initialize ModelChain with own specifications and use run_model method to
+#     # calculate power output
+#     mc_my_turbine = ModelChain(my_turbine, **modelchain_data).run_model(windpowerlib_df)
+#     # write power output time series to WindTurbine object
+#     my_turbine.power_output = mc_my_turbine.power_output
+    
+#     title = 'Wind turbine power production at ' + str(location)
+#     # plot turbine power output
+#     plt.figure()
+#     my_turbine.power_output.plot(title=title)
+#     plt.xlabel('Time')
+#     plt.ylabel('Power in W')
+#     plt.show()
+    
+#     my_turbinearray = multwind*my_turbine.power_output.values #hourly energy production over the year of 1 wind turbine of the specified kind in the specified location
+
+#     return my_turbinearray.sum()
+
+
+# list_wind = []
+# counter = 0
+# for vert in range(size):
+#     # for now for the first three locations
+#     for loc in loc_matrix[vert]:
+#         # Select location 'loc' (varies by longitude)
+#         # print(loc,' , type: ',type(loc))
+#         # Calculate PV
+#         # windpowerdf = func_Wind_df(loc)
+#         # windpowerdf2 = func_Wind(loc)
+#         # list_wind.append([counter, windpowerdf, windpowerdf2])
+#         # counter = counter + 1
+#         list_wind.append([loc, func_Wind_df(loc)])
+# for i in range(len(list_wind)):
+#     print(str(list_wind[i][0]), '->', str(list_wind[i][1]))
+
+
+#%% --- (OLD) Wind Energy Generation  ---
+
+
+
+# my_turbinearray = multwind*my_turbine.power_output.values #hourly energy production over the year of 1 wind turbine of the specified kind in the specified location
+
+#%% --- Transport Cost Function & Parameters ---
+
+# TC , Transport cost
+
+# coords_production = (general.cell(row=15, column=4).value, general.cell(row=15, column=5).value) #coordinates (latitude and longitude) of production location
+# coords_port = (general.cell(row=16, column=4).value, general.cell(row=16, column=5).value) #coordinates (latitude and longitude) of port
+# coords_demand = (general.cell(row=17, column=4).value, general.cell(row=17, column=5).value)  #coordinates (latitude and longitude) of demand location
+
+coords_production = (latitude, longitude)
+# coords_port = (53.43, 6.84) 
+# coords_demand = (53.43, 6.84)  
+
+
+distanceseafactor = general.cell(row=25, column=2).value
+distancesea = distanceseafactor*geopy.distance.geodesic(coords_production, coords_port).km #distance to be travelled over sea from production to demand location in km
+distanceland = geopy.distance.geodesic(coords_port, coords_demand).km #distance to be travelled over land from production to demand location in km
+
+Xtransport = demand #amount to be transported by ship in tons of hydrogen, assumed to be equal to demand as hydrogen losses are almost zero 
+Xkmsea = Xtransport*distancesea #yearly amount of tonkm to be made over sea
+Xkmland = demand*distanceland #yealy amount of tonkm over land
+
+Ckmammonia = np.array([float(cell.value) for cell in ammonia[158][2:2+Nsteps]]) #costs per km of overseas transport of 1 ton of hydrogen as ammonia in 10^3 euros over several years
+Cbasetransportammonia = np.array([float(cell.value) for cell in ammonia[159][2:2+Nsteps]])
+Ckmliquid = np.array([float(cell.value) for cell in liquidhydrogen[168][2:2+Nsteps]]) #costs per km of overseas transport of 1 ton of hydrogen as liquid hydrogen in 10^3 euros over several years
+Cbasetransportliquid =  np.array([float(cell.value) for cell in liquidhydrogen[169][2:2+Nsteps]])
+Ckmland = np.array([float(cell.value) for cell in landtransport[33][2:2+Nsteps]]) #costs per year per km of overland pipeline for 1 ton of hydrogen
+
+# Changes by transport mode: pipeline, vs shipping
+# Shipping cost
+Ckmsea = [Ckmammonia, Ckmliquid] #costs per ton per km of overseas transport, depending on whether ammonia or liquid hydrogen is chosen
+# Pipeline cost 1.5 million per km
+# TC = [1500000*distancesea, 150000*distancesea]
+
+
+
+Cbasetransport = [Cbasetransportammonia, Cbasetransportliquid] #baserate of the transport per ton hydrogen
+
+J = [1, 2]
+    
+def func_TC(location):
+    
+    location = [location[1],location[0]]
+    distancesea = distanceseafactor*geopy.distance.geodesic(location, coords_port).km
+    Xkmsea = Xtransport*distancesea
+    
+    TC = []
+    for j in J:
+        TCyear = Xtransport*Cbasetransport[j-1] + Xkmsea*Ckmsea[j-1] + Xkmland*Ckmland
+        TC.append(TCyear)
+    
+    return TC
+
+TC = func_TC(area)
+
+#%% Prepare location loop
+
+# Define the dimensions of the matrix
+size = 3  # This will create a 3x3 matrix
+# Calculate the range for rows and columns
+start = -0.2
+end = 0.2
+
+resolution_map = 0.2 
+# Create a matrix of the specified size, with each element being a tuple of length 2
+loc_matrix = np.empty((size, size), dtype=object)
+for i in range(size):
+    for j in range(size):
+        loc_matrix[i,j] = (start + j*resolution_map + longitude, end - i*resolution_map + latitude)
+
+
+
+
+# # Test locations
+# a=loc_matrix[0][0]
+# b=loc_matrix[0][20]
+# c=loc_matrix[20][0]
+# d=loc_matrix[20][20]
+# size = 2
+# loc_matrix = np.empty((size,size), dtype=object)
+# loc_matrix[0][0] = a
+# loc_matrix[0][1] = b
+# loc_matrix[1][0] = c
+# loc_matrix[1][1] = d
+# list_feedin_sums = []
+# list_turbine_sums = []
+# for vert in range(size):
+#     for loc in loc_matrix[vert]:
+#         feedinarray = func_PV(list(loc))
+#         list_feedin_sums.append(feedinarray.sum())
+#         # Calculate W
+#         my_turbinearray = func_Wind(loc)
+#         list_turbine_sums.append(my_turbinearray.sum())
+#         # Calculate TC
+#         TC = func_TC(loc)
+# print('solar: ',list_feedin_sums)
+# print('wind: ', list_turbine_sums)
+
+
+# PVsum = []
+# Windsum = []
+# locsum = []
+
+list_vert_locs = []
+for vert in range(size):
+    
+    
+    dict_of_df = {}
+    for loci in loc_matrix[vert]:
+        dict_of_df[loci] = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
+    
+    feedinlist = []
+    
+    counter = 0
+    # for now for the first three locations
+    for loc in loc_matrix[vert]:
+        # Select location 'loc' (varies by longitude)
+        # print(loc,' , type: ',type(loc))
+        # Calculate PV
+        feedinarray = func_PV(list(loc))
+        # PVsum.append(feedinarray.sum())
+        # Calculate W
+        my_turbinearray = func_Wind(loc)
+        # Windsum.append(my_turbinearray.sum())
+        
+        # locsum.append(loc)
+        # Calculate TC
+        TC = func_TC(loc)
+
+# for i in range(len(PVsum)):
+#     print(str(locsum[i]), '--- PV sum:', PVsum[i], '--- Wind sum: ', Windsum[i])
+    
         #%% --- Model parameters and sets ---
         
         # Set model name
@@ -569,7 +845,7 @@ def func_Wind(location):
         
         
         
-        # %%  ---- Integrate new variables ----
+        #%% --- Integrate new variables ---
         model.update()
         
         # # ---- Objective Function ----
@@ -599,7 +875,7 @@ def func_Wind(location):
         #%% --- Run Optimization ---
         model.update()
         
-        model.setParam( 'OutputFlag', False) # silencing gurobi output or not
+        # model.setParam( 'OutputFlag', False) # gurobi output or not
         model.Params.NumericFocus = 1
         model.Params.timeLimit = 400
         # model.optimize()
@@ -608,9 +884,9 @@ def func_Wind(location):
         feedin_index = func_Feedin_index(list(loc))
         hdata = pd.DataFrame(index=feedin_index) #for plotting the hydrogen production
         exceldf = pd.DataFrame(index=['Demand (tons of hydrogen)', 'Usage location', 'Year','Production location','Transfer port','Total costs per year (euros)','Costs per kg hydrogen (euros)','Wind turbines', 'Solar platforms','Electrolyzers','Desalination equipment', 'Storage volume (m3)','Conversion devices','Reconversion devices','Transport medium', 'FPSO volume (m3)', 'Distance sea (km)','Distance land (km)'])
-        demandlocation = general.cell(row=17, column=2).value #location where hydrogen is asked
-        productionlocation = general.cell(row=15, column=2).value #location where hydrogen is produced
-        transferport = general.cell(row=16, column=2).value #port where hydrogen is transferred from sea to land transport
+        demandlocation = 'Groningen' #location where hydrogen is asked
+        productionlocation = 'North-Sea' #location where hydrogen is produced
+        transferport = 'Groningen' #port where hydrogen is transferred from sea to land transport
         
         
         transportmedium = str('')

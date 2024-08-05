@@ -40,14 +40,14 @@ plt.show()
 
 #%%
 
-latitude =  26.81
-longitude = 126.94
+# latitude =  26.81
+# longitude = 126.94
 
-era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc'
+# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo.nc'
 
 
 # Define the dimensions of the matrix
-size = 21  # This will create a 21x21 matrix
+size = 1  # This will create a 21x21 matrix
 # Calculate the range for rows and columns
 start = -10
 end = 10

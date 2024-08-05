@@ -58,13 +58,13 @@ LonRegEast = longitude+10
 latitude = [LatRegSouth, LatRegNorth]  # [latitude south, latitude north]
 longitude = [LonRegWest, LonRegEast]  # [longitude west, longitude east]
 
-# set start and end date (end date will be included
-# in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-01-30'
-# set variable set to download (feedinlib: both solar and wind)
-variable = "feedinlib"
+# # set start and end date (end date will be included
+# # in the time period for which data is downloaded)
+# start_date, end_date = '2020-01-01', '2020-01-30'
+# # set variable set to download (feedinlib: both solar and wind)
+# variable = "feedinlib"
 
-target_file = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc'
+# target_file = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc'
 
 #%%
 
@@ -95,20 +95,20 @@ ds = era5.get_era5_data_from_datespan_and_position(
 # #     target_file=target_file)
 
 
-# # set start and end date (end date will be included
-# # in the time period for which data is downloaded)
-# start_date, end_date = '2020-01-01', '2020-01-02'
-# # set variable set to download
-# variable = "feedinlib"
+# set start and end date (end date will be included
+# in the time period for which data is downloaded)
+start_date, end_date = '2020-01-01', '2020-09-30'
+# set variable set to download
+variable = "feedinlib"
 
-# target_file = 'ERA5_weather_data_complete_1day.nc'
+target_file = 'Era 5 test data\ERA5_weather_data_NorthSea_010120-300920.nc'
 
-# # get feedinlib data (includes pvlib and windpowerlib data)
-# # for the whole world
-# ds = era5.get_era5_data_from_datespan_and_position(
-#     variable="feedinlib",
-#     start_date=start_date, end_date=end_date,
-#     target_file=target_file)
+# get feedinlib data (includes pvlib and windpowerlib data)
+# for the whole world
+ds = era5.get_era5_data_from_datespan_and_position(
+    variable="feedinlib",
+    start_date=start_date, end_date=end_date,
+    target_file=target_file)
 
 # # ds = era5.get_era5_data_from_datespan_and_position(
 # #     variable="feedinlib",
