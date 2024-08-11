@@ -110,6 +110,50 @@ ds = era5.get_era5_data_from_datespan_and_position(
     start_date=start_date, end_date=end_date,
     target_file=target_file)
 
+#%%
+
+# set start and end date (end date will be included
+# in the time period for which data is downloaded)
+start_date, end_date = '2021-01-01', '2021-09-30'
+# set variable set to download
+variable = "feedinlib"
+
+target_file = 'Era 5 test data\ERA5_weather_data_NorthSea_010121-300921.nc'
+
+# get pvlib data for specified region
+ds = era5.get_era5_data_from_datespan_and_position(
+    variable=variable,
+    start_date=start_date, end_date=end_date,
+    latitude=latitude, longitude=longitude,
+    target_file=target_file)
+
+#%%
+
+# set start and end date (end date will be included
+# in the time period for which data is downloaded)
+start_date, end_date = '2022-01-01', '2022-09-30'
+# set variable set to download
+variable = "feedinlib"
+
+target_file = 'Era 5 test data\ERA5_weather_data_NorthSea_010122-300922.nc'
+
+
+# get pvlib data for specified region
+ds = era5.get_era5_data_from_datespan_and_position(
+    variable=variable,
+    start_date=start_date, end_date=end_date,
+    latitude=latitude, longitude=longitude,
+    target_file=target_file)
+
+# # get feedinlib data (includes pvlib and windpowerlib data)
+# # for the whole world
+# ds = era5.get_era5_data_from_datespan_and_position(
+#     variable="feedinlib",
+#     start_date=start_date, end_date=end_date,
+#     target_file=target_file)
+
+
+
 # # ds = era5.get_era5_data_from_datespan_and_position(
 # #     variable="feedinlib",
 # #     start_date='2015-01-01', end_date='2015-12-12',
