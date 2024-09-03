@@ -184,3 +184,123 @@ ds = era5.get_era5_data_from_datespan_and_position(
 
 
 # #https://feedinlib.readthedocs.io/en/features-design-skeleton/load_era5_weather_data.html
+
+#%%
+
+
+### CDS-Beta
+
+import cdsapi
+
+
+target_file = 'Era 5 test data\ERA5_weather_data_NorthSea_010122-300922.nc'
+variable = [
+    "100u",
+    "100v",
+    "fsr",
+    "sp",
+    "fdir",
+    "ssrd",
+    "2t",
+    "10u",
+    "10v",
+]
+request = {
+    "format": "netcdf",
+    "product_type": "reanalysis",
+    "time": [
+        "00:00",
+        "01:00",
+        "02:00",
+        "03:00",
+        "04:00",
+        "05:00",
+        "06:00",
+        "07:00",
+        "08:00",
+        "09:00",
+        "10:00",
+        "11:00",
+        "12:00",
+        "13:00",
+        "14:00",
+        "15:00",
+        "16:00",
+        "17:00",
+        "18:00",
+        "19:00",
+        "20:00",
+        "21:00",
+        "22:00",
+        "23:00",
+    ],
+}
+
+
+client = cdsapi.Client()
+
+dataset = 'reanalysis-era5-single-levels'
+request = {
+    'product_type': ['reanalysis'],
+    'variable': variable,
+    'year': ['2024'],
+    'month': ['03'],
+    'day': ['01'],
+    'time': ['13:00'],
+    'pressure_level': ['1000'],
+    'data_format': 'grib',
+}
+target = target_file
+
+client.retrieve(dataset, request, target)
+
+#%%
+import cdsapi
+ 
+c = cdsapi.Client()
+ 
+first_year = 2018
+last_year = 2019
+
+
+for year in range(first_year, last_year + 1):
+    for month in range(1, 13):
+        print("=========================================================")
+        print("Downloading {year}-{month:02d}".format(year=year, month=month))
+        c.retrieve(
+            'reanalysis-era5-single-levels',
+            {
+                'product_type': 'reanalysis',
+                'variable': '2m_temperature',
+                'year': str(year),
+                'month': "{month:02d}".format(month=month),
+                'day': [
+                    '01', '02', '03',
+                    '04', '05', '06',
+                    '07', '08', '09',
+                    '10', '11', '12',
+                    '13', '14', '15',
+                    '16', '17', '18',
+                    '19', '20', '21',
+                    '22', '23', '24',
+                    '25', '26', '27',
+                    '28', '29', '30',
+                    '31',
+                ],
+                'time': [
+                    '00:00', '01:00', '02:00',
+                    '03:00', '04:00', '05:00',
+                    '06:00', '07:00', '08:00',
+                    '09:00', '10:00', '11:00',
+                    '12:00', '13:00', '14:00',
+                    '15:00', '16:00', '17:00',
+                    '18:00', '19:00', '20:00',
+                    '21:00', '22:00', '23:00',
+                ],
+                'area': [
+                    90, 170, 80,
+                    180,
+                ],
+                'format': 'grib',
+            },
+            "{year}-{month:02d}.grib".format(year=year, month=month))

@@ -63,8 +63,8 @@ storage = wb['Storage'] #selecting data from sheet called storage
 fpso = wb['FPSO'] #selecting data from sheet called fpso
 
 # Time period data
-Startyear = 2047 #first year to be reviewed
-timeperiod = 3 #total time period of simulation in years
+Startyear = 2020 #first year to be reviewed
+timeperiod = 30 #total time period of simulation in years
 timestep = 3 #time step of simulation in years
 Nsteps = int(timeperiod/timestep+1) #number of time steps (important for data selection from excel and loop at the end)
 
@@ -81,6 +81,10 @@ coords_port = (53.43, 6.84)
 # #  Port of Rotterdam
 # coords_demand = (51.95, 4.14) 
 
+# Era 5 weather data file location
+era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010120-300920.nc' #North-Sea Case data 9 months in 2020
+
+
 # Solar and Wind 
 multsolar = 524*1000/206.7989   # Installed capacity per unit [kWp] * 1000 (to make it [W]) / capacity from PVlib [Wp]
 multwind = 12/3   # Capacity per unit [MW] / capacity from Windlib [MW]
@@ -92,15 +96,11 @@ DataYearRatio = 9/12
 DiscountRate = 0.08
 
 # Demand parameter (needed for now for transport calculation)
-# demand = 50000 #demand in tons of hydrogen per year
 capacity = 700 # [MW] theoretical capacity of north sea case
 demand = capacity*8760/1000/0.0505 # [tonH2/yr] theoretical demand at 100% CF
-# demand = 50000 #demand in tons of hydrogen per year
 
 # Energy Medium (0: NH3 ship, 1: LH2 ship, 2: GH2 pipe, 3: NH3 pipe)
-E = 3
-# Transport Mode setting (0: shipping, 1: pipeline)
-# modesetting = 0
+E = 0
 
 # Excel parameter replacement from TC
 distanceseafactor = 1
@@ -123,40 +123,29 @@ gamma = 50500000 # [Wh/tonH2]
 
 #### Input params
 
-# Startyear = 2047
-# Nsteps = 2
-# timestep = 3
-learning_rate_2035 = 40/115 # from Tycho
-learning_rate_2050 = 0.5    # from Tycho
-Capacity_Wind = 12          # 12 from Tycho, 15 MW per turbinefrom Hyfloat
-# CAPEX [Eur/kW] in 2020
-Development = 212           # [], Project costs (Lensink & Pisca, 2018) excel file
-Turbine = 1060
-Plant_Balance = 350
-Decommission = 44
-Total_CAPEX = Development + Turbine + Plant_Balance + Decommission
-Total_CAPEX_MW = Total_CAPEX * 1000
-# OPEX [Eur/MW] in 2020
-Avg_OPEX = 135000
-r = 0.08 # Interest rate [%/100]
+learning_rate_wind = 0.088       # [%/100]
+reduction_factor = np.log2(1 - learning_rate_wind)
+Capacity_Wind = 12          # [MW]
+CAPEX_wind_initial = 1944          # [Eur/kW] in 2020
+CAPEX_wind_initial_MW = CAPEX_wind_initial * 1000 # [Eur/MW]
+OPEX_wind_initial = 64 # OPEX [Eur/MW] in 2020
 lftm = 25 # lifetime of turbine [Years]
-
+a_wind = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 
 #### Computation
 
-# #  TYCHOS NUMBERS (FLOATING)
-# # Year
-# Year = np.array([2025, 2035, 2050])
-# # CAPEX
-# CAPEX = np.array([4022700*Capacity_Wind, learning_rate_2035*4022700*Capacity_Wind, learning_rate_2035*learning_rate_2050*4022700*Capacity_Wind])
-# # OPEX
-# OPEX = np.array([979800, 340800, 170400])
+years = np.arange(2020, 2051)  # Years from 2021 to 2050
 
-Year = np.array([2020, 2035, 2050])
-CAPEX_Wind = np.array([Total_CAPEX_MW*Capacity_Wind, Total_CAPEX_MW*Capacity_Wind*learning_rate_2035, Total_CAPEX_MW*Capacity_Wind*learning_rate_2035*learning_rate_2050])
-OPEX_Wind = np.array([Avg_OPEX*Capacity_Wind, Avg_OPEX*Capacity_Wind*learning_rate_2035, Avg_OPEX*Capacity_Wind*learning_rate_2035*learning_rate_2050])
+annual_increase = (250 - 50) / (2031 - 2021) # [GW/y] global cumulative capacity increase per year
+cumulative_capacity = 50 + (years - 2021) * annual_increase
 
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1) 
+CAPEX_wind_year = CAPEX_wind_initial * (cumulative_capacity / 50) ** reduction_factor
+CAPEX_wind_year_list = list(zip(years, CAPEX_wind_year))
+
+OPEX_wind_year = OPEX_wind_initial * (cumulative_capacity / 50) ** reduction_factor
+OPEX_wind_year_list = list(zip(years, OPEX_wind_year))
+
+
 
 Wind_Costs = np.zeros((5,31))
 
@@ -166,38 +155,15 @@ for i in range(31):
     yearstep += 1
     
 for i in range(31):
+    Wind_Costs[1][i] = CAPEX_wind_year_list[i][1]
+
+for i in range(31):
     Wind_Costs[2][i] = lftm
     
-# 2020-2035 CAPEX
-X = Year[0:2].reshape(-1, 1)
-y = CAPEX_Wind[0:2]              
-model = LinearRegression()
-model.fit(X, y)
-X_predict = Wind_Costs[0][0:16].reshape(-1, 1) # put the dates of which you want to predict kwh here
-Wind_Costs[1][0:16] = model.predict(X_predict)
-# 2035-2050 CAPEX
-X = Year[1:3].reshape(-1, 1)
-y = CAPEX_Wind[1:3]
-model = LinearRegression()
-model.fit(X, y)
-X_predict = Wind_Costs[0][16:31].reshape(-1, 1) # put the dates of which you want to predict kwh here
-Wind_Costs[1][16:31] = model.predict(X_predict)
-# 2020-2035 OPEX
-X = Year[0:2].reshape(-1, 1)
-y = OPEX_Wind[0:2]
-model = LinearRegression()
-model.fit(X, y)
-X_predict = Wind_Costs[0][0:16].reshape(-1, 1) # put the dates of which you want to predict kwh here
-Wind_Costs[3][0:16] = model.predict(X_predict)
-# 2035-2050 OPEX
-X = Year[1:3].reshape(-1, 1)
-y = OPEX_Wind[1:3]
-model = LinearRegression()
-model.fit(X, y)
-X_predict = Wind_Costs[0][16:31].reshape(-1, 1) # put the dates of which you want to predict kwh here
-Wind_Costs[3][16:31] = model.predict(X_predict)
+for i in range(31):
+    Wind_Costs[3][i] = OPEX_wind_year_list[i][1]
 
-Wind_Costs[4] = a*Wind_Costs[1] + Wind_Costs[3]
+Wind_Costs[4] = a_wind*Wind_Costs[1] + Wind_Costs[3]
 
 def rel_wind_array(SY, NS, TS, WiCo):
     index = np.where(Wind_Costs[0] == SY)[0][0]
@@ -212,7 +178,7 @@ def rel_wind_array(SY, NS, TS, WiCo):
 # Tycho's numbers
 r = 0.08 # Interest rate [%/100]
 lftm = 25 #lifetime [years]
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1)
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 
 ThroughputConv = 100000/365 #tonNH3/day
 ThroughputReconv = 1200 #tonNH3/day
@@ -268,16 +234,13 @@ def rel_rec_array(SY, NS, TS, RecNH3Co):
     
     return relevant_array_rec_NH3
 
-# DataYearRatio*rel_con_array(Startyear, Nsteps, timestep, Con_Costs)
-# DataYearRatio*rel_rec_array(Startyear, Nsteps, timestep, Rec_Costs)
 
 #%% LH2 Conversion and Reconversion Parameters - Excel Replacement
 
 # Conversion
 # Tycho's numbers
-r = 0.08 # Interest rate [%/100]
 lftm = 30   # Conversion device lifetime
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1)
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 Prod_conv_unit = 10000 # [tonsH2/yr] yearly production of 1 conversion unit
 
 # Eur/ton/yr
@@ -333,19 +296,8 @@ def rel_rec_arrayLH2(SY, NS, TS, RecLH2Co):
 
 
 
-#%% --- Solar Function (and ERA5 setup) ---
+#%% --- Solar Function ---
 
-# set start and end date (end date will be included
-# in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-09-30'  #Test data of 9 months
-# start_date, end_date = '2020-01-01', '2020-10-31'
-# set variable set to download
-variable = 'feedinlib'
-
-# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo_Corrected.nc' #referring to file with weather data downloaded earlier using the ERA5 API
-# era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
-# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc' #North-Sea Case data
-era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010120-300920.nc' #North-Sea Case data 9 months
 
 # area = [longitude, latitude]
     
@@ -654,10 +606,10 @@ def func_TC(location, E):
 #%% Location selection
 
 # # Define the dimensions of the matrix (play with these 4 values to determine start location)
-size = 1  # This will create a size*size matrix
+size = 6  # This will create a size*size matrix
 # Calculate the range for rows and columns
-start = -1.5 # Starting position relative to longitude
-end = 2 # Ending position relative to latitude
+start = -3.5 # Starting position relative to longitude
+end = 4 # Ending position relative to latitude
 resolution_map = 1 # Distance between locations
 
 
@@ -751,7 +703,7 @@ for vert in range(size):
         
         # Cost parameters
         
-        # Cconvammonia = DataYearRatio*rel_con_array(Startyear, Nsteps, timestep, Con_Costs)
+        Cconvammonia = DataYearRatio*rel_con_array(Startyear, Nsteps, timestep, Con_Costs)
         # Cconvliquid = DataYearRatio*rel_con_arrayLH2(Startyear, Nsteps, timestep, LH2_Con_Costs)
         # Creconvammonia = DataYearRatio*rel_rec_array(Startyear, Nsteps, timestep, Rec_Costs)
         # Creconvliquid = DataYearRatio*rel_rec_arrayLH2(Startyear, Nsteps, timestep, LH2_Rec_Costs)

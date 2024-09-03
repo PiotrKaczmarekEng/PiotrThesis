@@ -29,19 +29,19 @@ import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 
 
-import warnings
+# import warnings
 
-def fxn():
-    warnings.warn("deprecated", DeprecationWarning)
+# def fxn():
+#     warnings.warn("deprecated", DeprecationWarning)
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    fxn()
-
-# # Or if you are using > Python 3.11:
-# with warnings.catch_warnings(action="ignore"):
+# with warnings.catch_warnings():
+#     warnings.simplefilter("ignore")
 #     fxn()
-pd.set_option('future.no_silent_downcasting', True)
+
+# # # Or if you are using > Python 3.11:
+# # with warnings.catch_warnings(action="ignore"):
+# #     fxn()
+# pd.set_option('future.no_silent_downcasting', True)
 
 
 #%% --- Excel Parameters ---
@@ -53,7 +53,7 @@ wb = load_workbook(data_file,data_only=True) # creating workbook
 
 # general = wb['General'] #selecting data from sheet called general
 # wind = wb['Wind'] #selecting data from sheet called wind
-solar = wb['Solar'] #selecting data from sheet called solar
+# solar = wb['Solar'] #selecting data from sheet called solar
 electrolyzer = wb['Electrolyzer'] #selecting data from sheet called electrolyzer
 desalination = wb['Desalination'] #selecting data from sheet called desalination
 ammonia = wb['Ammonia'] #selecting data from sheet called ammonia
@@ -62,12 +62,19 @@ landtransport = wb['Land transport'] #selecting data from sheet called landtrans
 storage = wb['Storage'] #selecting data from sheet called storage
 fpso = wb['FPSO'] #selecting data from sheet called fpso
 
+#### General Parameters
+
 # Time period data
 Startyear = 2047 #first year to be reviewed
 timeperiod = 3 #total time period of simulation in years
 timestep = 3 #time step of simulation in years
 Nsteps = int(timeperiod/timestep+1) #number of time steps (important for data selection from excel and loop at the end)
+DiscountRate = 0.08 # Discount rate
+distanceseafactor = 1 # 1 if geodesic does not cross land, more otherwise
 
+# Demand parameter (needed for now for transport calculation)
+capacity = 700 # [MW] theoretical capacity of north sea case
+demand = capacity*8760/1000/0.0505 # [tonH2/yr] theoretical demand at 100% CF
 # Coordinates production location
 
 ## North-Sea case 
@@ -80,27 +87,17 @@ coords_demand = (53.43, 6.84)
 coords_port = (53.43, 6.84) 
 # #  Port of Rotterdam
 # coords_demand = (51.95, 4.14) 
+# coords_port = (51.95, 4.14) 
 
-# Solar and Wind 
-multsolar = 524*1000/206.7989   # Installed capacity per unit [kWp] * 1000 (to make it [W]) / capacity from PVlib [Wp]
-multwind = 12/3   # Capacity per unit [MW] / capacity from Windlib [MW]
 
 # Set to the time period ratio of the CDS dataset considered (1/12 means 1 month)
 DataYearRatio = 9/12
 
-# Discount rate
-DiscountRate = 0.08
-
-# Demand parameter (needed for now for transport calculation)
-# demand = 50000 #demand in tons of hydrogen per year
-capacity = 700 # [MW] theoretical capacity of north sea case
-demand = capacity*8760/1000/0.0505 # [tonH2/yr] theoretical demand at 100% CF
-# demand = 50000 #demand in tons of hydrogen per year
-
 # Energy Medium (0: NH3 ship, 1: LH2 ship, 2: GH2 pipe, 3: NH3 pipe)
 E = 3
-# Transport Mode setting (0: shipping, 1: pipeline)
-# modesetting = 0
+
+# Battery setting 1 on 0 off
+BESS = 1
 
 # Excel parameter replacement from TC
 distanceseafactor = 1
@@ -115,22 +112,25 @@ gamma = 50500000 # [Wh/tonH2]
 # eta_ij
 # phi_j
 # nu_j
+s0 = 0 # [Wh] initial state of charge
+smin = 0 # [Wh] minimum state of charge 
+smax = 1000000000 # [Wh] maximum state of charge (set to gigawatt)
+BigM = 10000000000000000000000000000 # Very large number
+# Solar and Wind multipliers
+multsolar = 524*1000/206.7989   # Installed capacity per unit [kWp] * 1000 (to make it [W]) / capacity from PVlib [Wp]
+multwind = 12/3   # Capacity per unit [MW] / capacity from Windlib [MW]
 
-# Excel parameter replacement from model parameters
 
 
-#%% Wind Parameters - Excel replacement
+#%% Wind Parameters
 
 #### Input params
 
-# Startyear = 2047
-# Nsteps = 2
-# timestep = 3
 learning_rate_2035 = 40/115 # from Tycho
 learning_rate_2050 = 0.5    # from Tycho
-Capacity_Wind = 12          # 12 from Tycho, 15 MW per turbinefrom Hyfloat
+Capacity_Wind = 12          # 12 MW from Tycho, 15 MW per turbinefrom Hyfloat
 # CAPEX [Eur/kW] in 2020
-Development = 212           # [], Project costs (Lensink & Pisca, 2018) excel file
+Development = 212           # Project costs (Lensink & Pisca, 2018) excel file
 Turbine = 1060
 Plant_Balance = 350
 Decommission = 44
@@ -138,11 +138,10 @@ Total_CAPEX = Development + Turbine + Plant_Balance + Decommission
 Total_CAPEX_MW = Total_CAPEX * 1000
 # OPEX [Eur/MW] in 2020
 Avg_OPEX = 135000
-r = 0.08 # Interest rate [%/100]
 lftm = 25 # lifetime of turbine [Years]
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1)  # Amortization Factor
 
-
-#### Computation
+#### Computation for cost array
 
 # #  TYCHOS NUMBERS (FLOATING)
 # # Year
@@ -152,11 +151,14 @@ lftm = 25 # lifetime of turbine [Years]
 # # OPEX
 # OPEX = np.array([979800, 340800, 170400])
 
+
+# Linear Forecast
+
+# Known values
 Year = np.array([2020, 2035, 2050])
 CAPEX_Wind = np.array([Total_CAPEX_MW*Capacity_Wind, Total_CAPEX_MW*Capacity_Wind*learning_rate_2035, Total_CAPEX_MW*Capacity_Wind*learning_rate_2035*learning_rate_2050])
 OPEX_Wind = np.array([Avg_OPEX*Capacity_Wind, Avg_OPEX*Capacity_Wind*learning_rate_2035, Avg_OPEX*Capacity_Wind*learning_rate_2035*learning_rate_2050])
 
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1) 
 
 Wind_Costs = np.zeros((5,31))
 
@@ -200,6 +202,19 @@ Wind_Costs[3][16:31] = model.predict(X_predict)
 Wind_Costs[4] = a*Wind_Costs[1] + Wind_Costs[3]
 
 def rel_wind_array(SY, NS, TS, WiCo):
+    '''
+    Input
+    ----------
+    SY : Stary Year
+    NS : Number of Steps
+    TS : Time Step
+    WiCo : Wind Cost array
+
+    Output
+    -------
+    relevant_array : Reduced array including only relevant values
+
+    '''
     index = np.where(Wind_Costs[0] == SY)[0][0]
     relevant_array = np.zeros(NS)
     for i in range(NS):    
@@ -207,12 +222,91 @@ def rel_wind_array(SY, NS, TS, WiCo):
     
     return relevant_array
 
-#%% Ammonia Conversion and Reconversion Parameters - Excel Replacement
+
+#%% Solar Parameters
+
+Solar_Cost_array = np.array([[2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030,
+       2031, 2032, 2033, 2034, 2035, 2036, 2037, 2038, 2039, 2040, 2041,
+       2042, 2043, 2044, 2045, 2046, 2047, 2048, 2049, 2050],
+    [6.32528973e+05, 6.01398920e+05, 5.75978794e+05, 5.54643314e+05,
+     5.36358277e+05, 5.20428114e+05, 5.06364392e+05, 4.93812062e+05,
+     4.82505608e+05, 4.72241709e+05, 4.62861507e+05, 4.51705383e+05,
+     4.41754371e+05, 4.32577456e+05, 4.24108910e+05, 4.16066609e+05,
+     4.08277607e+05, 4.01131944e+05, 3.94363250e+05, 3.88026778e+05,
+     3.81901323e+05, 3.75491638e+05, 3.69154118e+05, 3.63246505e+05,
+     3.59098918e+05, 3.46755331e+05, 3.40927490e+05, 3.35501637e+05,
+     3.30431178e+05, 3.25676900e+05, 3.21205512e+05],
+    [2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01, 2.50000000e+01,
+     2.50000000e+01, 2.50000000e+01, 2.50000000e+01],
+    [1.26505794e+04, 1.20279784e+04, 1.15195759e+04, 1.10928663e+04,
+     1.07271655e+04, 1.04085623e+04, 1.01272878e+04, 9.87624125e+03,
+     9.65011217e+03, 9.44483418e+03, 9.25723015e+03, 9.03410766e+03,
+     8.83508741e+03, 8.65154913e+03, 8.48217821e+03, 8.32133219e+03,
+     8.16555214e+03, 8.02263888e+03, 7.88726500e+03, 7.76053557e+03,
+     7.63802647e+03, 7.50983276e+03, 7.38308235e+03, 7.26493010e+03,
+     7.18197837e+03, 6.93510663e+03, 6.81854980e+03, 6.71003273e+03,
+     6.60862356e+03, 6.51353800e+03, 6.42411025e+03],
+    [7.19051213e+04, 6.83662949e+04, 6.54765660e+04, 6.30511748e+04,
+     6.09725541e+04, 5.91616326e+04, 5.75628859e+04, 5.61359523e+04,
+     5.48506485e+04, 5.36838609e+04, 5.26175310e+04, 5.13493164e+04,
+     5.02180975e+04, 4.91748771e+04, 4.82121831e+04, 4.72979442e+04,
+     4.64124999e+04, 4.56001897e+04, 4.48307328e+04, 4.41104104e+04,
+     4.34140762e+04, 4.26854310e+04, 4.19649894e+04, 4.12934192e+04,
+     4.08219266e+04, 3.94187227e+04, 3.87562208e+04, 3.81394164e+04,
+     3.75630129e+04, 3.70225523e+04, 3.65142505e+04]
+])
+
+def rel_sol_array(SY, NS, TS, SoCo):
+    index = np.where(Solar_Cost_array[0] == SY)[0][0]
+    relevant_array = np.zeros(NS)
+    for i in range(NS):    
+        relevant_array[i] = SoCo[4][index+i*TS]
+    
+    return relevant_array
+
+
+#%% Electrolyzer Parameters
+
+
+Ed = 35
+Ec1 = 750/0.18
+Ec2 = 10180
+Ec3 = 0
+Ec4 = 750/0.18
+Es1 = 210
+Es2 = 600
+Es3 = 0
+Es4 = 0
+
+
+alpha_1 = (gamma/1000) / (Ed + Ec1 + Es1 + (gamma/1000))
+alpha_2 = (gamma/1000) / (Ed + Ec2 + Es2 + (gamma/1000))
+alpha_3 = (gamma/1000) / (Ed + Ec3 + Es3 + (gamma/1000))
+alpha_4 = (gamma/1000) / (Ed + Ec4 + Es4 + (gamma/1000))
+
+#alpha_j
+alpha = [alpha_1, alpha_2, alpha_3, alpha_4]
+
+lftm = 25 # lifetime of turbine [Years]
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1)  # Amortization Factor
+
+# Linear Forecast
+
+Ce = DataYearRatio*np.array([float(cell.value) for cell in electrolyzer[50][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an electrolyzer in 10^3 euros over several years
+
+#%% Desalination Parameters
+
+#%% NH3 Conversion and Reconversion Parameters
 
 # Tycho's numbers
-r = 0.08 # Interest rate [%/100]
 lftm = 25 #lifetime [years]
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1)
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1)
 
 ThroughputConv = 100000/365 #tonNH3/day
 ThroughputReconv = 1200 #tonNH3/day
@@ -271,13 +365,12 @@ def rel_rec_array(SY, NS, TS, RecNH3Co):
 # DataYearRatio*rel_con_array(Startyear, Nsteps, timestep, Con_Costs)
 # DataYearRatio*rel_rec_array(Startyear, Nsteps, timestep, Rec_Costs)
 
-#%% LH2 Conversion and Reconversion Parameters - Excel Replacement
+#%% LH2 Conversion and Reconversion Parameters
 
 # Conversion
 # Tycho's numbers
-r = 0.08 # Interest rate [%/100]
 lftm = 30   # Conversion device lifetime
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1)
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1)
 Prod_conv_unit = 10000 # [tonsH2/yr] yearly production of 1 conversion unit
 
 # Eur/ton/yr
@@ -328,6 +421,12 @@ def rel_rec_arrayLH2(SY, NS, TS, RecLH2Co):
     return relevant_array_rec_LH2
 
 
+#%% Storage parameters
+
+
+
+#%% FPSO size parameters 
+
 
 
 
@@ -335,16 +434,8 @@ def rel_rec_arrayLH2(SY, NS, TS, RecLH2Co):
 
 #%% --- Solar Function (and ERA5 setup) ---
 
-# set start and end date (end date will be included
-# in the time period for which data is downloaded)
-start_date, end_date = '2020-01-01', '2020-09-30'  #Test data of 9 months
-# start_date, end_date = '2020-01-01', '2020-10-31'
-# set variable set to download
-variable = 'feedinlib'
 
-# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_test_RegTokyo_Corrected.nc' #referring to file with weather data downloaded earlier using the ERA5 API
-# era5_netcdf_filename = 'ERA5_weather_data_location4.nc' #referring to file with weather data downloaded earlier using the ERA5 API
-# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_1month_RegNorthSea.nc' #North-Sea Case data
+
 era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010120-300920.nc' #North-Sea Case data 9 months
 
 # area = [longitude, latitude]
@@ -770,7 +861,8 @@ for vert in range(size):
             Aarray = np.array([[Cconvammonia[l], Cconvliquid[l], Cconvgas[l], Cconvammonia[l]], [Creconvammonia[l], Creconvliquid[l], Creconvgas[l], Creconvammonia[l]]])
             A.append(Aarray)
         
-        Cs1 = DataYearRatio*np.array([float(cell.value) for cell in solar[51][2:2+Nsteps]])
+        # Cs1 = DataYearRatio*np.array([float(cell.value) for cell in solar[51][2:2+Nsteps]])
+        Cs1 = DataYearRatio*rel_sol_array(Startyear, Nsteps, timestep, Solar_Cost_array)
         # Cw1 = DataYearRatio*np.array([float(cell.value) for cell in wind[48][2:2+Nsteps]])
         Cw1 = DataYearRatio*rel_wind_array(Startyear, Nsteps, timestep, Wind_Costs)
         Ce = DataYearRatio*np.array([float(cell.value) for cell in electrolyzer[50][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an electrolyzer in 10^3 euros over several years
@@ -810,8 +902,8 @@ for vert in range(size):
         
         # Non-cost parameters
         
-        electrolyzer_energy = 1000*electrolyzer.cell(row=7, column=2).value #energy requirement of electrolyzer in Wh per ton of hydrogen
-        gamma = electrolyzer_energy #50500000 [Wh/tonH2]
+        # electrolyzer_energy = 1000*electrolyzer.cell(row=7, column=2).value #energy requirement of electrolyzer in Wh per ton of hydrogen
+        # gamma = electrolyzer_energy #50500000 [Wh/tonH2]
         
         Ed = 35
         Ec1 = 750/0.18
@@ -901,12 +993,6 @@ for vert in range(size):
         
         #%% --- Variables ---
         
-        # # w[i,j]
-        # w = {}
-        # for i in I:
-        #     for j in J:
-        #         w[i,j] = model.addVar (lb = 0, vtype = GRB.INTEGER, name = 'w[' + str(i) + ',' + str(j) + ']' )
-        
         # x[k]
         x = {}
         for k in K:
@@ -932,6 +1018,28 @@ for vert in range(size):
             h[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'h[' + str(t) + ']' )
         
         
+        if BESS == 1:
+            
+            # Battery charging
+            PC = {}
+            for t in T:
+                PC[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PC[' + str(t) + ']' )
+            
+            # Battery discharging
+            PD = {}
+            for t in T:
+                PD[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 'PD[' + str(t) + ']' )
+            
+            # State of charge
+            s = {}
+            for t in T:
+                s[t] = model.addVar (lb = 0, vtype = GRB.CONTINUOUS, name = 's[' + str(t) + ']' )
+                
+            # Binary charging variable
+            u = {}
+            for t in T:
+                u[t] = model.addVar (vtype = GRB.BINARY, name = 'u[' + str(t) + ']' )
+        
         
         #%% --- Integrate new variables ---
         model.update()
@@ -939,11 +1047,35 @@ for vert in range(size):
         
         #%% --- Constraints ---
         
+        model.addConstr(s[0] == s0) # new cons
+        
         for t in T:
             model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2])
-            model.addConstr(PU[t] <= alpha[E]*PG[t])
+            
+            if BESS == 0:
+                model.addConstr(PU[t] <= alpha[E]*PG[t])
+            elif BESS == 1:
+                model.addConstr(PU[t] + PC[t] - PD[t] == alpha[E]*PG[t]) # New cons for BESS
+                model.addConstr(s[t] <= smax) # New cons
+                model.addConstr(s[t] >= smin) # new cons
+                model.addConstr(PD[t] - u[t]*BigM <= 0) # new cons
+                model.addConstr(PC[t] + BigM*u[t] <= BigM) # new cons
+                
+               
+                # model.addConstr(PD[t] + PC[t] == PD[t]) # new cons
+                
+                model.addConstr(PC[t] <= 10000) # new cons
+                model.addConstr(PD[t] <= 10000) # new cons
+                
             model.addConstr(PU[t] <= beta*gamma*x[3])
             model.addConstr(h[t] == PU[t]/gamma)
+            
+        if BESS == 1:    
+            for t in T[1:]:
+                model.addConstr(s[t] == s[t-1] + PC[t] - PD[t])# new cons
+                # model.addConstr(PD[t] <= s[t-1]) # new cons
+        
+        
         
         model.addConstr(quicksum(h[t] for t in T) >= D/(eta[0][E]*eta[1][E]))  
         
@@ -957,12 +1089,14 @@ for vert in range(size):
         # print('Forcing wind turbines to 0 units (Check Constraints)')
         
         
+        
+        
         #%% --- Run Optimization ---
         model.update()
         
-        model.setParam( 'OutputFlag', False) # gurobi output or not (If you want ouput, keep the line. If you dont want output, comment line out)
+        model.setParam( 'OutputFlag', True) # gurobi output or not (If you want ouput, keep the line. If you dont want output, comment line out)
         model.Params.NumericFocus = 1
-        model.Params.timeLimit = 400
+        # model.Params.timeLimit = 400
         # model.optimize()
         
         Result = []
@@ -1015,37 +1149,9 @@ for vert in range(size):
         list_vert_locs.append(dict_of_df)
         # dict_of_df[loc][timestep*l+Startyear] = [demand*(1/DataYearRatio),demandlocation,timestep*l+Startyear, productionlocation, transferport, model.ObjVal*(1/DataYearRatio), model.ObjVal/demand/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
         counter = counter + 1
-        # df.loc[0,'ObjVal'] = model.ObjVal
+        
 
-df.to_csv("test_csv.csv")
-
-
-# fig = px.density_mapbox(df, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
-#                         radius = 7,
-#                         center = dict(lat = 26.81, lon = 126.94),
-#                         zoom = 3,
-#                         mapbox_style = 'open-street-map',
-#                         color_continuous_scale = 'rainbow')
-
-# # Usage location
-# fig.add_trace(go.Scattermapbox(
-#         lat=[35.64],
-#         lon=[139.8],
-#         mode='markers',
-#         marker=dict(size=10, color="Orange"),
-#         name="Usage Location",
-    
-#     ))
-
-
-# pio.renderers.default='browser'
-# fig.show()
-
-# Set the title for the plots/files
-# if modesetting==0:
-#     title_str = 'Shipping'
-# elif modesetting==1:
-#     title_str = 'Pipeline'
+# df.to_csv("test_csv.csv")
     
 if E==0:
     title_str = ' NH3 ship'
@@ -1343,34 +1449,5 @@ with pd.ExcelWriter("csv_files/Output_j"+str(E+1)+".xlsx") as writer:
         list_df_all[counter].to_excel(writer, sheet_name=str(year), index=False)
         counter += 1
 
-# list_vert_locs
-
-# for loc in loc_matrix[vert]:
-#     Cost_per_kg = dict_of_df[loc].loc['Costs per kg hydrogen (euros)',2050]
-#     df.loc[counter,'Cost_per_kg'] = Cost_per_kg
-#     df.loc[counter,'longitude'] = loc_matrix[vert][counter][0]
-#     df.loc[counter,'latitude'] = loc_matrix[vert][counter][1]
-#     counter = counter + 1
-
-# fig = px.density_mapbox(df, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
-#                         radius = 7,
-#                         center = dict(lat = 26.81, lon = 126.94),
-#                         zoom = 3,
-#                         mapbox_style = 'open-street-map',
-#                         color_continuous_scale = 'rainbow')
-
-# # Usage location
-# fig.add_trace(go.Scattermapbox(
-#         lat=[35.64],
-#         lon=[139.8],
-#         mode='markers',
-#         marker=dict(size=10, color="Orange"),
-#         name="Usage Location",
-    
-#     ))
-
-
-# pio.renderers.default='browser'
-# fig.show()
-
+#
 
