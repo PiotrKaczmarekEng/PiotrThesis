@@ -27,6 +27,7 @@ import plotly.express as px
 import plotly.io as pio
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
+import statistics
 
 
 import warnings
@@ -100,7 +101,7 @@ capacity = 700 # [MW] theoretical capacity of north sea case
 demand = capacity*8760/1000/0.0505 # [tonH2/yr] theoretical demand at 100% CF
 
 # Energy Medium (0: NH3 ship, 1: LH2 ship, 2: GH2 pipe, 3: NH3 pipe)
-E = 0
+E = 2
 
 # Excel parameter replacement from TC
 distanceseafactor = 1
@@ -128,7 +129,8 @@ reduction_factor = np.log2(1 - learning_rate_wind)
 Capacity_Wind = 12          # [MW]
 CAPEX_wind_initial = 1944          # [Eur/kW] in 2020
 CAPEX_wind_initial_MW = CAPEX_wind_initial * 1000 # [Eur/MW]
-OPEX_wind_initial = 64 # OPEX [Eur/MW] in 2020
+OPEX_wind_initial = 64 # OPEX [Eur/kW] in 2020
+OPEX_wind_initial_MW = OPEX_wind_initial*1000 # OPEX [Eur/MW]
 lftm = 25 # lifetime of turbine [Years]
 a_wind = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 
@@ -136,14 +138,14 @@ a_wind = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # 
 
 years = np.arange(2020, 2051)  # Years from 2021 to 2050
 
-annual_increase = (250 - 50) / (2031 - 2021) # [GW/y] global cumulative capacity increase per year
-cumulative_capacity = 50 + (years - 2021) * annual_increase
+annual_increase = (250000 - 50000) / (2031 - 2021) # [GW/y] global cumulative capacity increase per year
+cumulative_capacity = 50000 + (years - 2021) * annual_increase
 
-CAPEX_wind_year = CAPEX_wind_initial * (cumulative_capacity / 50) ** reduction_factor
-CAPEX_wind_year_list = list(zip(years, CAPEX_wind_year))
+CAPEX_wind_year = CAPEX_wind_initial_MW * (cumulative_capacity / 50000) ** reduction_factor
+CAPEX_wind_year_list = list(zip(years, CAPEX_wind_year*Capacity_Wind))
 
-OPEX_wind_year = OPEX_wind_initial * (cumulative_capacity / 50) ** reduction_factor
-OPEX_wind_year_list = list(zip(years, OPEX_wind_year))
+OPEX_wind_year = OPEX_wind_initial_MW * (cumulative_capacity / 50000) ** reduction_factor
+OPEX_wind_year_list = list(zip(years, OPEX_wind_year*Capacity_Wind))
 
 
 
@@ -829,7 +831,7 @@ for vert in range(size):
         capconvliquid = DataYearRatio*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per hour after conversion of one conversion installation for liquid hydrogen
         
         w11 = math.ceil(1.6*D/(eta[1][0]*capconvammonia))   # NH3 j=1
-        w12 = 1.6*D/(eta[1][1]*capconvliquid)               # LH2 j=2
+        w12 = math.ceil(1.6*D/(eta[1][1]*capconvliquid))               # LH2 j=2
         w13 = 0                                             # GH2 j=3 (no need for conversion)
         w14 = math.ceil(1.6*D/(eta[1][0]*capconvammonia))   # NH3 j=4 (same as w11, both are ammonia)
         
@@ -838,10 +840,10 @@ for vert in range(size):
         capreconvammonia = DataYearRatio*ammonia.cell(row=75, column=2).value #yearly output capacity in tons of hydrogen per year after reconversion of one reconversion installation for ammonia
         capreconvliquid = DataYearRatio*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per year after reconversion of one reconversion installation for liquid hydrogen
         
-        w21 = D/capreconvammonia    # NH3 j=1
-        w22 = D/capreconvliquid     # LH2 j=2
+        w21 = math.ceil(D/capreconvammonia)    # NH3 j=1
+        w22 = math.ceil(D/capreconvliquid)     # LH2 j=2
         w23 = 0                     # GH2 j=3
-        w24 = D/capreconvammonia    # NH3 j=4
+        w24 = math.ceil(D/capreconvammonia)    # NH3 j=4
         
         
         # w_ij Number of conversion and reconversion devices 
@@ -917,6 +919,7 @@ for vert in range(size):
         model.Params.timeLimit = 400
         # model.optimize()
         
+        Runtime_List = []
         Result = []
         feedin_index = func_Feedin_index(list(loc))
         hdata = pd.DataFrame(index=feedin_index) #for plotting the hydrogen production
@@ -945,6 +948,7 @@ for vert in range(size):
             model.update ()
             model.optimize()
             Result.append(model.ObjVal)
+            Runtime_List.append(model.Runtime)
             exceldf[timestep*l+Startyear] = [demand,demandlocation,timestep*l+Startyear, loc, transferport, model.ObjVal*(1/DataYearRatio), model.ObjVal/D/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
             dict_of_df[loc][timestep*l+Startyear] = [demand,demandlocation,timestep*l+Startyear, loc, transferport, model.ObjVal*(1/DataYearRatio), model.ObjVal/D/1000,x[1].X, x[2].X, x[3].X, x[4].x, y[1].X, W[0][E], W[1][E], transportmedium, y[2].X,distancesea,distanceland]
             print('------- Completed run: ', l+1, ' out of ', max(L)+1 , '     (Year: ',Startyear+timestep*l ,')')
@@ -972,32 +976,11 @@ for vert in range(size):
 df.to_csv("test_csv.csv")
 
 
-# fig = px.density_mapbox(df, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
-#                         radius = 7,
-#                         center = dict(lat = 26.81, lon = 126.94),
-#                         zoom = 3,
-#                         mapbox_style = 'open-street-map',
-#                         color_continuous_scale = 'rainbow')
-
-# # Usage location
-# fig.add_trace(go.Scattermapbox(
-#         lat=[35.64],
-#         lon=[139.8],
-#         mode='markers',
-#         marker=dict(size=10, color="Orange"),
-#         name="Usage Location",
-    
-#     ))
-
-
-# pio.renderers.default='browser'
-# fig.show()
-
-# Set the title for the plots/files
-# if modesetting==0:
-#     title_str = 'Shipping'
-# elif modesetting==1:
-#     title_str = 'Pipeline'
+print("--- Runtime Statistics ---")
+print("Total Runtime: ",sum(Runtime_List))
+print("Average Runtime: ", statistics.mean(Runtime_List))
+print("Max Runtime: ", max(Runtime_List))
+print("Min Runtime: ", min(Runtime_List))
     
 if E==0:
     title_str = ' NH3 ship'
@@ -1204,7 +1187,7 @@ df_map = df_full_all
 # df_map = df_map.loc[(df_map['latitude'] >=53.55) & (df_map['longitude'] <=8.28)]
 # df_map = df_map.loc[(df_map['Electrolyzers'] <70)]
 
-df_map.loc[66]  = [60] + [0] + [0] + [0]+ [0]+ [24] + [0] + [0]+ [0]+ [0]+ [0]+ [0]+ [0]# Add one random point with 24 electrolyzers just to match the color scheme (LH2)
+# df_map.loc[66]  = [60] + [0] + [0] + [0]+ [0]+ [24] + [0] + [0]+ [0]+ [0]+ [0]+ [0]+ [0]# Add one random point with 24 electrolyzers just to match the color scheme (LH2)
 # df_map.loc[66]  = [60] + [0] + [0] + [0]+ [0]+ [21] + [0] + [0]+ [0]+ [0]+ [0]+ [0]+ [0]# Add one random point with 21 electrolyzers just to match the color scheme (NH3)
 
 
