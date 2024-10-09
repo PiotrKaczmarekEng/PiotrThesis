@@ -28,6 +28,7 @@ import plotly.io as pio
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 import statistics
+import xarray as xr
 
 
 import warnings
@@ -95,14 +96,13 @@ DataYearRatio = 9/12
 
 # Discount rate
 DiscountRate = 0.08
-InterestRate = 0.08
 
 # Demand parameter (needed for now for transport calculation)
 capacity = 700 # [MW] theoretical capacity of north sea case
 demand = capacity*8760/1000/0.0505 # [tonH2/yr] theoretical demand at 100% CF
 
 # Energy Medium (0: NH3 ship, 1: LH2 ship, 2: GH2 pipe, 3: NH3 pipe)
-E = 0
+E = 2
 
 # Excel parameter replacement from TC
 distanceseafactor = 1
@@ -133,17 +133,17 @@ CAPEX_wind_initial_MW = CAPEX_wind_initial * 1000 # [Eur/MW]
 OPEX_wind_initial = 64 # OPEX [Eur/kW] in 2020
 OPEX_wind_initial_MW = OPEX_wind_initial*1000 # OPEX [Eur/MW]
 lftm = 25 # lifetime of turbine [Years]
-a_wind = (InterestRate*(1+InterestRate)**lftm) / ((1+InterestRate)**lftm - 1) # amortization factor
+a_wind = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 
 #### Computation
 
-years = np.arange(2020, 2051)  # Years from 2021 to 2050
+years = np.arange(2020, 2051)  # Years from 2020 to 2050
 
 annual_increase = (250000 - 50000) / (2031 - 2021) # [GW/y] global cumulative capacity increase per year
 cumulative_capacity = 50000 + (years - 2021) * annual_increase
 
-CAPEX_wind_year = CAPEX_wind_initial_MW * (cumulative_capacity / 50000) ** reduction_factor     # 
-CAPEX_wind_year_list = list(zip(years, CAPEX_wind_year*Capacity_Wind))  
+CAPEX_wind_year = CAPEX_wind_initial_MW * (cumulative_capacity / 50000) ** reduction_factor
+CAPEX_wind_year_list = list(zip(years, CAPEX_wind_year*Capacity_Wind))
 
 OPEX_wind_year = OPEX_wind_initial_MW * (cumulative_capacity / 50000) ** reduction_factor
 OPEX_wind_year_list = list(zip(years, OPEX_wind_year*Capacity_Wind))
@@ -179,9 +179,9 @@ def rel_wind_array(SY, NS, TS, WiCo):
 #%% Ammonia Conversion and Reconversion Parameters - Excel Replacement
 
 # Tycho's numbers
-# InterestRate = 0.08 # Interest rate [%/100]
+r = 0.08 # Interest rate [%/100]
 lftm = 25 #lifetime [years]
-a = (InterestRate*(1+InterestRate)**lftm) / ((1+InterestRate)**lftm - 1) # amortization factor
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 
 ThroughputConv = 100000/365 #tonNH3/day
 ThroughputReconv = 1200 #tonNH3/day
@@ -243,7 +243,7 @@ def rel_rec_array(SY, NS, TS, RecNH3Co):
 # Conversion
 # Tycho's numbers
 lftm = 30   # Conversion device lifetime
-a = (InterestRate*(1+InterestRate)**lftm) / ((1+InterestRate)**lftm - 1) # amortization factor
+a = (DiscountRate*(1+DiscountRate)**lftm) / ((1+DiscountRate)**lftm - 1) # amortization factor
 Prod_conv_unit = 10000 # [tonsH2/yr] yearly production of 1 conversion unit
 
 # Eur/ton/yr
@@ -520,7 +520,7 @@ Cbasetransport = [Cbasetransportammonia, Cbasetransportliquid] #baserate of the 
 
 # Parameters NH3 (j=4)
 Lifetime_Pipe_NH3 = 30 # Project Lifetime NH3 pipeline [years]
-a_pipe_NH3 =(InterestRate*(1+InterestRate)**Lifetime_Pipe_NH3)/((1+InterestRate)**Lifetime_Pipe_NH3) # Amortization factor
+a_pipe_NH3 =(DiscountRate*(1+DiscountRate)**Lifetime_Pipe_NH3)/((1+DiscountRate)**Lifetime_Pipe_NH3) # Amortization factor
 C_pipe_NH3 = 771000 # NH3 Pipeline cost per km [Eur]
 C_pump_NH3 = 1800000 # NH3 pump cost per station [Eur/pumpstation]
 Pump_distance = 128.8 # Distance above which an additional pump is required [km]
@@ -546,7 +546,7 @@ def Transport_NH3_Pipe(distance):
 # Parameters GH2 (j=3)
 Lifetime_Pipe_GH2 = 30 # Project Lifetime NH3 pipeline [years]
 peak_x3 = 35 # Peak number of electrolyzers required in project [# of electrolyzers]
-a_pipe_GH2 =(InterestRate*(1+InterestRate)**Lifetime_Pipe_GH2)/((1+InterestRate)**Lifetime_Pipe_GH2) # Amortization factor [-]
+a_pipe_GH2 =(DiscountRate*(1+DiscountRate)**Lifetime_Pipe_GH2)/((1+DiscountRate)**Lifetime_Pipe_GH2) # Amortization factor [-]
 v_pipe_GH2 = 15 # flow rate [m/s]
 rho_pipe_GH2 = 8 # density GH2 [kg/m3]
 Q_pipe_GH2 = 1000*beta*peak_x3/3600 # mass flow rate [kg/s]
@@ -652,10 +652,51 @@ fig_map.show()
 
 fig_map.data = []
 
+#%% Bathymetry
+
+def get_water_depth(lat, lon, bathymetry_file='NetCDF/north_sea_bathymetry.nc'):
+    """
+    Returns the water depth (bathymetry) for a given latitude and longitude from a bathymetry dataset.
+
+    Parameters:
+    lat (float): Latitude of the location
+    lon (float): Longitude of the location
+    bathymetry_file (str): Path to the NetCDF bathymetry file
+
+    Returns:
+    float: Water depth at the specified lat/lon location in meters. Positive values indicate depth.
+    """
+
+    # Open the NetCDF file containing bathymetry data
+    try:
+        ds = xr.open_dataset(bathymetry_file)
+    except FileNotFoundError:
+        print("Bathymetry file not found.")
+        return None
+
+    # Check if the file contains 'latitude', 'longitude', and 'elevation' variables
+    if 'lat' not in ds.variables or 'lon' not in ds.variables or 'elevation' not in ds.variables:
+        print("NetCDF file does not contain required variables.")
+        return None
+
+    # Find the nearest lat/lon indices in the dataset
+    lat_idx = np.abs(ds['lat'] - lat).argmin().item()
+    lon_idx = np.abs(ds['lon'] - lon).argmin().item()
+
+    # Extract the water depth at the nearest lat/lon indices
+    water_depth = ds['elevation'][lat_idx, lon_idx].item()
+
+    # Close the dataset
+    ds.close()
+
+    return water_depth
+
+
+
 #%% Prepare location loop
 
 
-Runtime_List = []
+
 list_vert_locs = []
 for vert in range(size):
     
@@ -726,7 +767,7 @@ for vert in range(size):
             A.append(Aarray)
         
         Cs1 = DataYearRatio*np.array([float(cell.value) for cell in solar[51][2:2+Nsteps]])
-        # Cw1 = DataYearRatio*np.array([float(cell.value) for cell in wind[48][2:2+Nsteps]])
+        # Cw1_floating = DataYearRatio*np.array([float(cell.value) for cell in wind[48][2:2+Nsteps]])
         Cw1 = DataYearRatio*rel_wind_array(Startyear, Nsteps, timestep, Wind_Costs)
         Ce = DataYearRatio*np.array([float(cell.value) for cell in electrolyzer[50][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of an electrolyzer in 10^3 euros over several years
         Cd = DataYearRatio*np.array([float(cell.value) for cell in desalination[49][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of a desalination installation in 10^3 euros over several years
@@ -740,6 +781,7 @@ for vert in range(size):
                                Cd[l]])
             B.append(Barray)
         
+                
         # C_lnj
         Cstliquid =  DataYearRatio*np.array([float(cell.value) for cell in storage[25][2:2+Nsteps]]) #cost per year (depreciation+OPEX) of storage per m3 in euros over several years
         Cstammonia =  DataYearRatio*np.array([float(cell.value) for cell in storage[54][2:2+Nsteps]])
@@ -920,7 +962,7 @@ for vert in range(size):
         model.Params.timeLimit = 400
         # model.optimize()
         
-        # Runtime_List = []
+        Runtime_List = []
         Result = []
         feedin_index = func_Feedin_index(list(loc))
         hdata = pd.DataFrame(index=feedin_index) #for plotting the hydrogen production
@@ -1139,7 +1181,7 @@ fig.show()
 
 
 #%%
-# Color palettes: 'RdBu', 
+
 fig = px.density_mapbox(df_full, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
                         radius = 15,
                         center = dict(lat = latitude, lon = longitude),
@@ -1188,8 +1230,6 @@ df_map = df_full_all
 # df_map = df_map.loc[(df_map['latitude'] >=53.55) & (df_map['longitude'] <=8.28)]
 # df_map = df_map.loc[(df_map['Electrolyzers'] <70)]
 
-# df_map.loc[66]  = [60] + [0] + [0] + [0]+ [0]+ [24] + [0] + [0]+ [0]+ [0]+ [0]+ [0]+ [0]# Add one random point with 24 electrolyzers just to match the color scheme (LH2)
-# df_map.loc[66]  = [60] + [0] + [0] + [0]+ [0]+ [21] + [0] + [0]+ [0]+ [0]+ [0]+ [0]+ [0]# Add one random point with 21 electrolyzers just to match the color scheme (NH3)
 
 
 # Color palettes: 'RdBu', 
@@ -1308,4 +1348,5 @@ with pd.ExcelWriter("csv_files/Output_j"+str(E+1)+".xlsx") as writer:
 
 # pio.renderers.default='browser'
 # fig.show()
+
 

@@ -5,7 +5,7 @@ Created on Thu May  2 11:41:52 2024
 @author: Piotr Kaczmarek
 """
 
-#%% --- Preamble ---
+#%% --- 1. Preamble ---
 
 import os
 import numpy as np
@@ -45,7 +45,7 @@ with warnings.catch_warnings():
 pd.set_option('future.no_silent_downcasting', True)
 
 
-#%% --- Excel Parameters ---
+#%% --- 2. Excel Parameters ---
 
 #loading excel to later retrieve input data using openpyxl
 data_file = os.getcwd() 
@@ -102,7 +102,7 @@ capacity = 700 # [MW] theoretical capacity of north sea case
 demand = capacity*8760/1000/0.0505 # [tonH2/yr] theoretical demand at 100% CF
 
 # Energy Medium (0: NH3 ship, 1: LH2 ship, 2: GH2 pipe, 3: NH3 pipe)
-E = 0
+E = 3
 
 # Excel parameter replacement from TC
 distanceseafactor = 1
@@ -121,7 +121,7 @@ gamma = 50500000 # [Wh/tonH2]
 # Excel parameter replacement from model parameters
 
 
-#%% Wind Parameters - Excel replacement
+#%% 3. Wind Parameters - Excel replacement
 
 #### Input params
 
@@ -176,7 +176,7 @@ def rel_wind_array(SY, NS, TS, WiCo):
     
     return relevant_array
 
-#%% Ammonia Conversion and Reconversion Parameters - Excel Replacement
+#%% 4. Ammonia Conversion and Reconversion Parameters - Excel Replacement
 
 # Tycho's numbers
 # InterestRate = 0.08 # Interest rate [%/100]
@@ -238,7 +238,7 @@ def rel_rec_array(SY, NS, TS, RecNH3Co):
     return relevant_array_rec_NH3
 
 
-#%% LH2 Conversion and Reconversion Parameters - Excel Replacement
+#%% 5. LH2 Conversion and Reconversion Parameters - Excel Replacement
 
 # Conversion
 # Tycho's numbers
@@ -299,7 +299,7 @@ def rel_rec_arrayLH2(SY, NS, TS, RecLH2Co):
 
 
 
-#%% --- Solar Function ---
+#%% --- 6. Solar Function ---
 
 
 # area = [longitude, latitude]
@@ -337,7 +337,7 @@ def func_PV(location):
         lib='pvlib', area=[lon_location, lat_location])
     
     #determining the zenith angle (angle of sun position with vertical in vertical plane) in the specified locations for the time instances downloaded from ERA5
-    zenithcalc = pvlib.solarposition.get_solarposition(time=pvlib_df.index,latitude=latitude, longitude=longitude, altitude=None, pressure=None, method='nrel_numpy', temperature=pvlib_df['temp_air'])
+    zenithcalc = pvlib.solarposition.get_solarposition(time=pvlib_df.index,latitude=lat_location, longitude=lon_location, altitude=None, pressure=None, method='nrel_numpy', temperature=pvlib_df['temp_air'])
     
     #determining DNI from GHI, DHI and zenith angle for the time instances downloaded from ERA5
     dni = pvlib.irradiance.dni(pvlib_df['ghi'],pvlib_df['dhi'], zenith=zenithcalc['zenith'], clearsky_dni=None, clearsky_tolerance=1.1, zenith_threshold_for_zero_dni=88.0, zenith_threshold_for_clearsky_limit=80.0)
@@ -369,7 +369,7 @@ def func_PV(location):
 
 # feedinarray = func_PV(area)
 
-#%% Feedin Index function
+#%% 7. Feedin Index function
 
 
 def func_Feedin_index(location):
@@ -404,7 +404,7 @@ def func_Feedin_index(location):
         lib='pvlib', area=[lon_location,lat_location])
     
     #determining the zenith angle (angle of sun position with vertical in vertical plane) in the specified locations for the time instances downloaded from ERA5
-    zenithcalc = pvlib.solarposition.get_solarposition(time=pvlib_df.index,latitude=latitude, longitude=longitude, altitude=None, pressure=None, method='nrel_numpy', temperature=pvlib_df['temp_air'])
+    zenithcalc = pvlib.solarposition.get_solarposition(time=pvlib_df.index,latitude=lat_location, longitude=lon_location, altitude=None, pressure=None, method='nrel_numpy', temperature=pvlib_df['temp_air'])
     
     #determining DNI from GHI, DHI and zenith angle for the time instances downloaded from ERA5
     dni = pvlib.irradiance.dni(pvlib_df['ghi'],pvlib_df['dhi'], zenith=zenithcalc['zenith'], clearsky_dni=None, clearsky_tolerance=1.1, zenith_threshold_for_zero_dni=88.0, zenith_threshold_for_clearsky_limit=80.0)
@@ -425,7 +425,7 @@ def func_Feedin_index(location):
     
     return feedin_index    
 
-#%% --- Wind function ---
+#%% --- 8. Wind function ---
 
 def func_Wind(location):
     
@@ -487,7 +487,7 @@ def func_Wind(location):
     return my_turbinearray
 
 
-#%% --- Transport Cost Function & Parameters ---
+#%% --- 9. Transport Cost Function & Parameters ---
 
 # TC , Transport cost
 
@@ -606,7 +606,7 @@ def func_TC(location, E):
 
 
 
-#%% Location selection
+#%% 10. Location selection
 
 # # Define the dimensions of the matrix (play with these 4 values to determine start location)
 size = 6  # This will create a size*size matrix
@@ -652,7 +652,7 @@ fig_map.show()
 
 fig_map.data = []
 
-#%% Prepare location loop
+#%% 11. Prepare location loop
 
 
 Runtime_List = []
@@ -687,7 +687,7 @@ for vert in range(size):
         distancesea = distanceseafactor*geopy.distance.geodesic((lat_prod,lon_prod), coords_port).km
 
     
-        #%% --- Model parameters and sets ---
+        #%% --- 12. Model parameters and sets ---
         
         # Set model name
         model = Model('GFPSO Cost Optimization')
@@ -832,7 +832,7 @@ for vert in range(size):
         capconvliquid = DataYearRatio*liquidhydrogen.cell(row=25, column=2).value  #yearly output capacity in tons of hydrogen per hour after conversion of one conversion installation for liquid hydrogen
         
         w11 = math.ceil(1.6*D/(eta[1][0]*capconvammonia))   # NH3 j=1
-        w12 = math.ceil(1.6*D/(eta[1][1]*capconvliquid))               # LH2 j=2
+        w12 = math.ceil(1.6*D/(eta[1][1]*capconvliquid))    # LH2 j=2
         w13 = 0                                             # GH2 j=3 (no need for conversion)
         w14 = math.ceil(1.6*D/(eta[1][0]*capconvammonia))   # NH3 j=4 (same as w11, both are ammonia)
         
@@ -843,7 +843,7 @@ for vert in range(size):
         
         w21 = math.ceil(D/capreconvammonia)    # NH3 j=1
         w22 = math.ceil(D/capreconvliquid)     # LH2 j=2
-        w23 = 0                     # GH2 j=3
+        w23 = 0                                 # GH2 j=3
         w24 = math.ceil(D/capreconvammonia)    # NH3 j=4
         
         
@@ -854,7 +854,7 @@ for vert in range(size):
         #  For now the converters and reconverter amount is constant WC[i][j]
         WC = quicksum(W[i-1][E]*A[l][i-1][E] for i in I) 
         
-        #%% --- Variables ---
+        #%% --- 13. Variables ---
         
         # # w[i,j]
         # w = {}
@@ -888,31 +888,31 @@ for vert in range(size):
         
         
         
-        #%% --- Integrate new variables ---
+        #%% --- 14. Integrate new variables ---
         model.update()
         
         
-        #%% --- Constraints ---
+        #%% --- 15. Constraints ---
         
         for t in T:
-            model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2])
-            model.addConstr(PU[t] <= alpha[E]*PG[t])
-            model.addConstr(PU[t] <= beta*gamma*x[3])
-            model.addConstr(h[t] == PU[t]/gamma)
+            model.addConstr(PG[t] == my_turbinearray[t]*x[1] + feedinarray[t]*x[2]) # Constraint 3.5
+            model.addConstr(PU[t] <= alpha[E]*PG[t])                                # Constraint 3.6
+            model.addConstr(1*PU[t] <= beta*gamma*x[3])                             # Constraint 3.7
+            model.addConstr(h[t] == PU[t]/gamma)                                    # Constraint 3.8
         
-        model.addConstr(quicksum(h[t] for t in T) >= D/(eta[0][E]*eta[1][E]))  
+        model.addConstr(quicksum(h[t] for t in T) >= D/(eta[0][E]*eta[1][E]))       # Constraint 3.9
         
-        model.addConstr(x[4] >= x[3]*beta*epsilon)
+        model.addConstr(x[4] >= x[3]*beta*epsilon)                                  # Constraint 3.10
         
-        model.addConstr(y[2] == x[3]*nu[E])
+        model.addConstr(y[2] == x[3]*nu[E])                                         # Constraint 3.11
         
-        model.addConstr(y[1] == y[2]*phi[E])
+        model.addConstr(y[1] == y[2]*phi[E])                                        # Constraint 3.12
         
         # model.addConstr(x[1] == 0)# Force no wind, only solar
         # print('Forcing wind turbines to 0 units (Check Constraints)')
         
         
-        #%% --- Run Optimization ---
+        #%% --- 16. Run Optimization ---
         model.update()
         
         model.setParam( 'OutputFlag', False) # gurobi output or not (If you want ouput, keep the line. If you dont want output, comment line out)
@@ -959,7 +959,7 @@ for vert in range(size):
         
         
         
-        #%% --- Post-Processing ---
+        #%% --- 17. Post-Processing ---
         
         # Data with latitude/longitude and values
         df = pd.DataFrame(columns=['longitude','latitude','Cost_per_kg'],index=[list(range(size))])
@@ -993,7 +993,7 @@ elif E==3:
     title_str = ' NH3 pipe'
 
 
-#%% --- Plotting ---
+#%% --- 18. Plotting ---
 counter = 0
 # list_dfs = []
 # for vert in range(size):
@@ -1090,55 +1090,55 @@ df_relevant_lat = df_full
 
 
 
-#%% Only smaller region
+#%% 19. Adjusted region
 
-# Color palettes: 'RdBu', 
-fig = px.density_mapbox(df_relevant_lat, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
-                        radius = 15,
-                        center = dict(lat = latitude, lon = longitude),
-                        zoom = 3,
-                        mapbox_style = 'open-street-map',
-                        title = title_str,
-                        color_continuous_scale = 'Rainbow')
+# # Color palettes: 'RdBu', 
+# fig = px.density_mapbox(df_relevant_lat, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
+#                         radius = 15,
+#                         center = dict(lat = latitude, lon = longitude),
+#                         zoom = 3,
+#                         mapbox_style = 'open-street-map',
+#                         title = title_str,
+#                         color_continuous_scale = 'Rainbow')
 
 
 
-# Adjust color of heatmap by adding more points for density
-fig.add_trace(
-    go.Scattermapbox(
-        lat=df_relevant_lat["latitude"],
-        lon=df_relevant_lat["longitude"],
-        mode="markers",
-        showlegend=False,
-        hoverinfo="skip",
-        marker={
-            "color": df_relevant_lat["Cost_per_kg"],
-            "size": df_relevant_lat["Cost_per_kg"].fillna(0).infer_objects(copy=False),
-            "coloraxis": "coloraxis",
-            # desired max size is 15. see https://plotly.com/python/bubble-maps/#united-states-bubble-map
-            "sizeref": (df_relevant_lat["Cost_per_kg"].max()) / 15 ** 2,
-            "sizemode": "area",
-        },
-    )
-)
+# # Adjust color of heatmap by adding more points for density
+# fig.add_trace(
+#     go.Scattermapbox(
+#         lat=df_relevant_lat["latitude"],
+#         lon=df_relevant_lat["longitude"],
+#         mode="markers",
+#         showlegend=False,
+#         hoverinfo="skip",
+#         marker={
+#             "color": df_relevant_lat["Cost_per_kg"],
+#             "size": df_relevant_lat["Cost_per_kg"].fillna(0).infer_objects(copy=False),
+#             "coloraxis": "coloraxis",
+#             # desired max size is 15. see https://plotly.com/python/bubble-maps/#united-states-bubble-map
+#             "sizeref": (df_relevant_lat["Cost_per_kg"].max()) / 15 ** 2,
+#             "sizemode": "area",
+#         },
+#     )
+# )
 
-# Usage location
-fig.add_trace(go.Scattermapbox(
-        lat=[coords_demand[0]],
-        lon=[coords_demand[1]],
-        mode='markers',
-        marker=dict(size=10, color="Orange"),
-        name="Usage Location",
+# # Usage location
+# fig.add_trace(go.Scattermapbox(
+#         lat=[coords_demand[0]],
+#         lon=[coords_demand[1]],
+#         mode='markers',
+#         marker=dict(size=10, color="Orange"),
+#         name="Usage Location",
     
-    ))
+#     ))
 
 
-pio.renderers.default='browser'
-fig.show()
+# pio.renderers.default='browser'
+# fig.show()
 
 
 
-#%%
+#%% 20. Full region
 # Color palettes: 'RdBu', 
 fig = px.density_mapbox(df_full, lat = 'latitude', lon = 'longitude', z = 'Cost_per_kg',
                         radius = 15,
@@ -1183,7 +1183,7 @@ fig.add_trace(go.Scattermapbox(
 pio.renderers.default='browser'
 fig.show()
 
-#%% Electrolyzer map 2050
+#%% 21. Electrolyzer map 2050
 df_map = df_full_all
 # df_map = df_map.loc[(df_map['latitude'] >=53.55) & (df_map['longitude'] <=8.28)]
 # df_map = df_map.loc[(df_map['Electrolyzers'] <70)]
@@ -1237,7 +1237,7 @@ pio.renderers.default='browser'
 fig.show()
 
 
-#%%
+#%% 22. Excel output
 df_full.to_csv("df_full_csv.csv")
 # df_full_all.to_csv("csv_files/Output_pipeline_2050.csv")
 

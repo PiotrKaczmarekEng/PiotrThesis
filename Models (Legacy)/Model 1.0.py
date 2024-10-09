@@ -130,7 +130,7 @@ Year = np.array([2020, 2035, 2050])
 CAPEX = np.array([Total_CAPEX_MW*Capacity_Wind, Total_CAPEX_MW*Capacity_Wind*learning_rate_2035, Total_CAPEX_MW*Capacity_Wind*learning_rate_2035*learning_rate_2050])
 OPEX = np.array([Avg_OPEX*Capacity_Wind, Avg_OPEX*Capacity_Wind*learning_rate_2035, Avg_OPEX*Capacity_Wind*learning_rate_2035*learning_rate_2050])
 
-a = (r*(1+r)**lftm) / ((1+r)**lftm - 1) # Should this really be constant?
+a = (r*(1+r)**lftm) / ((1+r)**lftm - 1) 
 
 Wind_Costs = np.zeros((5,31))
 
