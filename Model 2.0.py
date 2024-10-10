@@ -910,6 +910,8 @@ for vert in range(size):
         
         # model.addConstr(x[1] == 0)# Force no wind, only solar
         # print('Forcing wind turbines to 0 units (Check Constraints)')
+        model.addConstr(x[2] == 0)# Force only wind, no solar
+        print('Forcing solar platforms to 0 units (Check Constraints)')
         
         
         #%% --- 16. Run Optimization ---
@@ -977,7 +979,7 @@ for vert in range(size):
 df.to_csv("test_csv.csv")
 
 
-print("--- Runtime Statistics ---")
+print("--- Runtime Statistics j=",E+1,"---")
 print("Total Runtime: ",sum(Runtime_List))
 print("Average Runtime: ", statistics.mean(Runtime_List))
 print("Max Runtime: ", max(Runtime_List))
@@ -1308,4 +1310,5 @@ with pd.ExcelWriter("csv_files/Output_j"+str(E+1)+".xlsx") as writer:
 
 # pio.renderers.default='browser'
 # fig.show()
+
 
