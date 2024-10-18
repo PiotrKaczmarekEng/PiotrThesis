@@ -6,6 +6,10 @@ Created on Thu Oct  3 14:30:00 2024
 """
 
 
+# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010120-300920.nc' #North-Sea Case data 9 months in 2020
+# era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010121-300921.nc' #North-Sea Case data 9 months in 2021
+era5_netcdf_filename = 'Era 5 test data\ERA5_weather_data_NorthSea_010122-300922.nc' #North-Sea Case data 9 months in 2022
+
 def func_PV(location):
     
     
