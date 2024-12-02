@@ -11,7 +11,7 @@ pip install feedinlib==0.1.0rc4
 
 
 (B)
-The GitHub repository contains all the relevant files to the modelling of the GFPSO supply chain. The main components needed are found in folder "1. Main Model". The python script is contained in the "1. Main Model/Model 3.1.py" file. The results output from the script will appear in the folder "1. Main Model/Model Output". The input files required for the model include the weather data in the "1. Main Model/Era 5 test data" folder, as well as the economic inputs in the "1. Main Model/Parameter Data.xlsx" file.
+The GitHub repository contains all the relevant files to the modelling of the GFPSO supply chain. The main components needed are found in folder "1. Main Model". The python script is contained in the "Model 3.1.py" file. The results output from the script will appear in the folder "Model Output". The input files required for the model include the weather data in the "Era 5 test data" folder, as well as the economic inputs in the "Parameter Data.xlsx" file.
 
 
 (C)
