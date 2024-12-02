@@ -4,7 +4,7 @@ This is the manual explaining the structure and usage of the model for the GFPSO
 
 
 (A)
-Make sure to install the necessary packages in the python environment:
+Make sure to install Gurobi, as well as the necessary packages in the python environment:
 pip install geopy
 pip install numpy==1.16.6
 pip install feedinlib==0.1.0rc4
@@ -12,6 +12,8 @@ pip install feedinlib==0.1.0rc4
 
 (B)
 The GitHub repository contains all the relevant files to the modelling of the GFPSO supply chain. The main components needed are found in folder "1. Main Model". The python script is contained in the "Model 3.1.py" file. The results output from the script will appear in the folder "Model Output". The input files required for the model include the weather data in the "Era 5 test data" folder, as well as the economic inputs in the "Parameter Data.xlsx" file.
+
+At first the era5 datafiles are not present due to GitHub file size limits, therefore the "new era5 data import.py" can be used to download the relevant files from CDS. The data file applied in the main script is "ERA5_weather_data_NorthSea_010120-300920.nc"
 
 
 (C)
