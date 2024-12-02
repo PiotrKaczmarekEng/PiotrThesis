@@ -4,7 +4,7 @@ This is the manual explaining the structure and usage of the model for the GFPSO
 
 
 (A)
-Make sure to install the necessary packages in the python environment:
+Make sure to install Gurobi, as well as the necessary packages in the python environment:
 pip install geopy
 pip install numpy==1.16.6
 pip install feedinlib==0.1.0rc4
